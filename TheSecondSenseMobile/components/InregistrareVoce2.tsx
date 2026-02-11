@@ -2,15 +2,15 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import React, { useEffect, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
-import { RootStackParamList } from "../App";
+import { RootStackParamList } from "../app/(tabs)/App";
 import svgPaths from "../hooks/svg-o4ibah9ira";
 
 type InregistrareVoce2NavigationProp = StackNavigationProp<

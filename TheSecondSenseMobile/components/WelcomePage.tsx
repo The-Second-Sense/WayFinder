@@ -3,7 +3,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import React, { useEffect } from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
-import { RootStackParamList } from "../App";
+import { RootStackParamList } from "../app/(tabs)/App";
 import svgPaths from "../hooks/svg-pib45gyikz";
 
 type WelcomePageNavigationProp = StackNavigationProp<

@@ -2,16 +2,16 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
-import { RootStackParamList, UserData } from "../App";
+import { RootStackParamList, UserData } from "../app/(tabs)/App";
 import svgPaths from "../hooks/svg-q8nt6t0xms";
 
 type LoginPageNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
