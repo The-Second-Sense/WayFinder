@@ -1,14 +1,9 @@
 import requests
 import base64
-import torch
-
-# Import torchaudio with soundfile backend
-import soundfile  # Import first to ensure it's available
-import torchaudio
+from create_fingerprint import get_fingerprint
 
 import json
 import os
-from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
 from dotenv import load_dotenv
 
@@ -18,56 +13,8 @@ load_dotenv()
 AGENT_URL = os.getenv("AGENT_URL")
 DEBERTA_URL = os.getenv("DEBERTA_URL")
 
-REFERENCE_FILENAME = "reference.wav"
-COMMAND_FILENAME = "command.wav"
-
-
-def get_local_fingerprint(audio_path):
-    """
-    Generate speaker embedding using Microsoft's WavLM model from HuggingFace.
-    This is a modern, well-maintained alternative to SpeechBrain.
-    """
-    print(f"Processing reference audio: {audio_path}")
-
-    # Load the model and feature extractor
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained('microsoft/wavlm-base-plus-sv')
-    model = WavLMForXVector.from_pretrained('microsoft/wavlm-base-plus-sv')
-
-    # Load audio file using soundfile directly (more reliable than torchaudio)
-    import numpy as np
-    signal_np, fs = soundfile.read(audio_path, dtype='float32')
-
-    # Convert to torch tensor and add batch dimension if needed
-    signal = torch.from_numpy(signal_np)
-    if signal.dim() == 1:
-        signal = signal.unsqueeze(0)  # Add channel dimension
-    elif signal.dim() == 2:
-        signal = signal.T  # soundfile returns (samples, channels), we need (channels, samples)
-
-    # Resample if needed (model expects 16kHz)
-    if fs != 16000:
-        print(f"  Resampling from {fs}Hz to 16000Hz...")
-        resampler = torchaudio.transforms.Resample(fs, 16000)
-        signal = resampler(signal)
-
-    # Convert stereo to mono if needed
-    if signal.shape[0] > 1:
-        print("  Converting stereo to mono...")
-        signal = torch.mean(signal, dim=0, keepdim=True)
-
-    # Process audio
-    inputs = feature_extractor(signal.squeeze().numpy(), sampling_rate=16000, return_tensors="pt")
-
-    # Generate embeddings
-    with torch.no_grad():
-        embeddings = model(**inputs).embeddings
-
-    # Normalize embeddings (important for cosine similarity)
-    embeddings = torch.nn.functional.normalize(embeddings, dim=-1)
-
-    # Convert tensor to a standard Python list
-    return embeddings.squeeze().tolist()
-
+REFERENCE_FILENAME = "reference.m4a"
+COMMAND_FILENAME = "command.m4a"
 
 def main():
     # 1. Check files
@@ -77,7 +24,7 @@ def main():
 
     # 2. Generate Fingerprint (Simulating Database Retrieval)
     try:
-        fingerprint_list = get_local_fingerprint(REFERENCE_FILENAME)
+        fingerprint_list = get_fingerprint(REFERENCE_FILENAME)
         print("Fingerprint generated successfully.")
     except Exception as e:
         print(f"Error processing reference file: {e}")

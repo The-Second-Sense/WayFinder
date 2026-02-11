@@ -4,7 +4,9 @@
 
 # Sensitive files
 .env
+*.mp4
 *.wav
+*.m4a
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

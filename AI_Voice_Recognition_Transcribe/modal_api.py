@@ -3,25 +3,33 @@ import base64
 import requests
 import os
 import torch
+import torchaudio
 from pydantic import BaseModel
 
-app = modal.App("secure-fingerprint-agent")
+# --- CHANGE 1: NEW APP NAME TO FORCE REBUILD ---
+app = modal.App("secure-fingerprint-agent-v2")
 model_cache = modal.Volume.from_name("my-model-cache", create_if_missing=True)
 
 
-# --- 1. DATA STRUCTURE ---
-# This is what the API expects to receive
 class SecureRequest(BaseModel):
-    current_voice_base64: str  # The new audio (Base64)
-    reference_fingerprint: list  # The list of numbers from your DB
-    deberta_url: str  # The address of your other agent
+    current_voice_base64: str
+    reference_fingerprint: list
+    deberta_url: str
 
+
+# --- CHANGE 2: FORCE PYTHON 3.11 & STABLE LIBRARIES ---
 image = (
-    modal.Image.debian_slim()
+    modal.Image.debian_slim(python_version="3.11")
     .apt_install("ffmpeg")
     .pip_install(
-        "fastapi[standard]", "transformers", "torch", "accelerate",
-        "speechbrain", "torchaudio", "requests", "numpy"
+        "fastapi[standard]",
+        "transformers",
+        "torch==2.6.0",
+        "torchaudio==2.6.0",
+        "accelerate",
+        "requests",
+        "numpy",
+        "soundfile"
     )
 )
 
@@ -30,80 +38,83 @@ image = (
     image=image,
     volumes={"/cache": model_cache},
     gpu="T4",
-    container_idle_timeout=300
+    scaledown_window=300
 )
 class SecurityAgent:
     @modal.enter()
     def load_models(self):
-        # Load SpeechBrain (The Verifier)
-        from speechbrain.inference.speaker import EncoderClassifier
-        self.verifier = EncoderClassifier.from_hparams(
-            source="speechbrain/spkrec-ecapa-voxceleb",
-            savedir="/cache/speechbrain",
-            run_opts={"device": "cuda"}
-        )
+        from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector, pipeline
 
-        # Load Whisper (The Transcriber)
-        from transformers import pipeline
+        print("Loading WavLM...")
+        self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained('microsoft/wavlm-base-plus-sv')
+        self.verifier = WavLMForXVector.from_pretrained('microsoft/wavlm-base-plus-sv').to("cuda")
+
+        print("Loading Whisper...")
         self.transcriber = pipeline(
             "automatic-speech-recognition",
             model="TransferRapid/whisper-large-v3-turbo_ro",
             device="cuda:0"
         )
 
-    @modal.web_endpoint(method="POST")
+    @modal.fastapi_endpoint(method="POST")
     def run_check(self, item: SecureRequest):
         import tempfile
         import torchaudio
+        import subprocess
 
-        # --- STEP A: PREPARE DATA ---
-        # 1. Convert the 'Database List' back into a 'Brain Tensor'
-        # We need to put it on the GPU (cuda) to compare it
+        # 1. Prepare Reference
         ref_tensor = torch.tensor(item.reference_fingerprint).to("cuda")
+        if ref_tensor.dim() == 1:
+            ref_tensor = ref_tensor.unsqueeze(0)
 
-        # Ensure it has the right shape (1 batch, 1 channel, 192 features)
-        # This reshaping ensures the math works correctly
-        if len(ref_tensor.shape) == 1:
-            ref_tensor = ref_tensor.unsqueeze(0).unsqueeze(0)
-
-        # 2. Save the NEW audio to a temp file
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        # 2. Save Audio (Input File)
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
             f.write(base64.b64decode(item.current_voice_base64))
-            temp_path = f.name
+            input_path = f.name
+
+        # Define a clean WAV output path for Whisper
+        clean_wav_path = input_path + "_clean.wav"
 
         try:
-            # --- STEP B: GENERATE NEW FINGERPRINT ---
-            # Load new audio
-            signal, _ = torchaudio.load(temp_path)
+            # Convert to clean WAV for Whisper
+            # This fixes the "malformed soundfile" error
+            subprocess.run([
+                "ffmpeg", "-y", "-i", input_path,
+                "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le",
+                clean_wav_path
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-            # Create fingerprint for the NEW voice
-            # Notice: We only run the heavy computation on the NEW audio
-            new_tensor = self.verifier.encode_batch(signal.to("cuda"))
+            # 3. Load Audio (Use the clean WAV now)
+            signal, fs = torchaudio.load(clean_wav_path)
 
-            # --- STEP C: COMPARE (Cosine Similarity) ---
-            # Compare the NEW tensor vs the STORED tensor
-            similarity = torch.nn.functional.cosine_similarity(new_tensor, ref_tensor)
+            # 4. (Resampling is now handled by ffmpeg above, but we keep safety check)
+            if fs != 16000:
+                resampler = torchaudio.transforms.Resample(fs, 16000)
+                signal = resampler(signal)
 
-            # Get the score (Float)
-            score = similarity.mean().item()
-            print(f"Security Score: {score}")
+            # 5. Generate Embedding
+            inputs = self.feature_extractor(
+                signal.squeeze().numpy(),
+                sampling_rate=16000,
+                return_tensors="pt"
+            ).to("cuda")
 
-            # --- STEP D: DECISION ---
-            if score < 0.25:
-                return {
-                    "status": "DENIED",
-                    "reason": "Voice did not match user profile.",
-                    "score": score
-                }
+            with torch.no_grad():
+                new_embeddings = self.verifier(**inputs).embeddings
+                new_embeddings = torch.nn.functional.normalize(new_embeddings, dim=-1)
 
-            # --- STEP E: ACTION (Transcribe & Classify) ---
-            print("Access Granted. Transcribing...")
+            # 6. Compare
+            score = torch.nn.functional.cosine_similarity(new_embeddings, ref_tensor).item()
+            print(f"Similarity Score: {score}")
 
-            # 1. Transcribe
-            res = self.transcriber(temp_path, generate_kwargs={"language": "romanian"})
+            if score < 0.75:
+                return {"status": "DENIED", "score": score, "reason": "Voice mismatch"}
+
+            # 7. Transcribe (Use the clean WAV file)
+            res = self.transcriber(clean_wav_path, generate_kwargs={"language": "romanian"})
             text = res["text"].strip()
 
-            # 2. Call Intent Agent
+            # 8. Intent
             intent_data = {}
             if item.deberta_url:
                 try:
@@ -122,6 +133,13 @@ class SecurityAgent:
                 "intent": intent_data
             }
 
+        except Exception as e:
+            print(f"Error: {e}")
+            return {"status": "ERROR", "reason": str(e)}
+
         finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            # Clean up both files
+            if os.path.exists(input_path):
+                os.remove(input_path)
+            if os.path.exists(clean_wav_path):
+                os.remove(clean_wav_path)
