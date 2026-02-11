@@ -136,7 +136,7 @@ function NewCardButton() {
   return (
     <View style={styles.newCardButtonContainer}>
       <Image
-        source={require("../assets/new-card-button.png")}
+        source={require("../assets/images/new-card-button.png")}
         style={styles.newCardButtonImage}
         resizeMode="contain"
       />

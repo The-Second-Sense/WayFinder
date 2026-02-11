@@ -77,7 +77,7 @@ export default function WelcomePage() {
       {/* Logo */}
       <View style={styles.logoContainer}>
         <Image
-          source={require("../assets/logo-wayfinder.png")}
+          source={require("../assets/images/logo-wayfinder.jpeg")}
           style={styles.logo}
           resizeMode="cover"
         />
