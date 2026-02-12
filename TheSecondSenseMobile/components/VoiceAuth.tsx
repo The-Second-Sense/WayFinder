@@ -146,7 +146,7 @@ export default function VoiceAuth() {
       <Text style={styles.titleText}>Autentificare vocală</Text>
       <Text style={styles.subtitleText}>Spune următoarea propoziție</Text>
 
-      <Text style={styles.phraseText}>„{phrase}"</Text>
+      <Text style={styles.phraseText}>{`„${phrase}”`}</Text>
 
       <Frame2 />
 

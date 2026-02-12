@@ -1,10 +1,9 @@
 {
   "expo": {
-    "name": "TheSecondSenseMobile",
-    "slug": "TheSecondSenseMobile",
+    "name": "Way Finder Mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo-wayfinder.jpeg",
     "scheme": "thesecondsensemobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -30,8 +29,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/logo-wayfinder.jpeg",
+          "imageWidth": 250, // Poți mări puțin lățimea dacă logo-ul e mic
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
           "dark": {

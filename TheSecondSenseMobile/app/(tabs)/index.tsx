@@ -1,15 +1,8 @@
-import { useNavigation } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
+import { useRouter } from "expo-router"; // 1. Schimbăm importul
 import React, { useEffect } from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-pib45gyikz";
-import { RootStackParamList } from "./dashboard";
-
-type WelcomePageNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "Welcome"
->;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -41,19 +34,21 @@ function Top() {
 }
 
 export default function WelcomePage() {
-  const navigation = useNavigation<WelcomePageNavigationProp>();
+  const router = useRouter(); // 2. Inițializăm router-ul Expo
 
   useEffect(() => {
-    // Auto-transition from welcome to login after 3 seconds
+    // Tranziție automată după 3 secunde
     const timer = setTimeout(() => {
-      navigation.replace("Login");
+      // 3. Navigăm către fișierul login.tsx
+      // Dacă login.tsx este în (tabs), folosește router.replace("/(tabs)/login")
+      router.replace("/login");
     }, 3000);
     return () => clearTimeout(timer);
-  }, [navigation]);
+  }, [router]);
 
   return (
     <View style={styles.container}>
-      {/* Bottom yellow shape 1 */}
+      {/* Formele galbene de fundal */}
       <View style={styles.yellowShape1}>
         <Svg
           width="475.5"
@@ -65,7 +60,6 @@ export default function WelcomePage() {
         </Svg>
       </View>
 
-      {/* Bottom yellow shape 2 */}
       <View style={styles.yellowShape2}>
         <Svg width="476" height="366" viewBox="0 0 476 366" fill="none">
           <Path d={svgPaths.p149179b2} fill="#FFED00" fillOpacity={0.34} />
@@ -74,16 +68,17 @@ export default function WelcomePage() {
 
       <Top />
 
-      {/* Logo */}
+      {/* Logo-ul aplicației */}
       <View style={styles.logoContainer}>
         <Image
+          // Verifică dacă această cale este corectă după mutarea fișierului
           source={require("../../assets/images/logo-wayfinder.jpeg")}
           style={styles.logo}
           resizeMode="cover"
         />
       </View>
 
-      {/* Home indicator */}
+      {/* Indicator Home */}
       <View style={styles.homeIndicator}>
         <Svg width="100" height="5" viewBox="0 0 100 5" fill="none">
           <Line
