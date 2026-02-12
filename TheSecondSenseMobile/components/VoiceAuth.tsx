@@ -2,14 +2,14 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import React, { useEffect, useState } from "react";
 import {
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { RootStackParamList } from "../app/(tabs)/App";
+import { RootStackParamList } from "../app/(tabs)/dashboard";
 import svgPaths from "../hooks/svg-5kazw1th4l";
 
 type VoiceAuthNavigationProp = StackNavigationProp<

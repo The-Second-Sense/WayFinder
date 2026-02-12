@@ -19,8 +19,10 @@ export interface Transaction {
   time: string;
 }
 
+// 1. Am adăugat ListHeaderComponent în interfață pentru a scăpa de eroarea TS
 interface TransactionListProps {
   transactions: Transaction[];
+  ListHeaderComponent?: React.ReactElement;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -32,7 +34,11 @@ const categoryIcons: Record<string, any> = {
   default: ArrowDownLeft,
 };
 
-export function TransactionList({ transactions }: TransactionListProps) {
+// 2. Extragem ListHeaderComponent aici
+export function TransactionList({
+  transactions,
+  ListHeaderComponent,
+}: TransactionListProps) {
   const renderItem = ({ item: transaction }: { item: Transaction }) => {
     const IconComponent =
       categoryIcons[transaction.category] || categoryIcons.default;
@@ -69,10 +75,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
         </View>
 
         <Text
-          style={[
-            styles.amount,
-            { color: isCredit ? "#EAB308" : "#1A1A1A" }, // Am ajustat galbenul pentru lizibilitate pe alb
-          ]}
+          style={[styles.amount, { color: isCredit ? "#EAB308" : "#1A1A1A" }]}
         >
           {isCredit ? "+" : "-"}
           {transaction.amount.toFixed(2)} RON
@@ -83,17 +86,23 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tranzacții Recente</Text>
-      </View>
-
-      {/* În loc de ScrollArea, folosim FlatList pentru performanță */}
+      {/* IMPORTANT: FlatList-ul devine acum scroll-ul principal.
+          Am scos style={{ height: 400 }} pentru ca lista să se poată extinde.
+      */}
       <FlatList
         data={transactions}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          <>
+            {/* Aici injectăm restul componentelor (Overview, Actions, Form) */}
+            {ListHeaderComponent}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Tranzacții Recente</Text>
+            </View>
+          </>
+        }
         contentContainerStyle={styles.listContent}
-        style={{ height: 400 }} // Limităm înălțimea ca în original
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -102,21 +111,14 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
 const styles = StyleSheet.create({
   card: {
+    flex: 1, // Permite listei să ocupe tot ecranul
     backgroundColor: "white",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   header: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
+    backgroundColor: "white",
   },
   headerTitle: {
     fontSize: 18,
@@ -124,13 +126,14 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   listContent: {
-    padding: 16,
+    paddingBottom: 32, // Spațiu la finalul listei
   },
   transactionItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f9f9f9",
   },
@@ -140,7 +143,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconContainer: {
-    padding: 10,
     width: 40,
     height: 40,
     borderRadius: 20,

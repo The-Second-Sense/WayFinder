@@ -140,7 +140,6 @@ function NewCardButton() {
         style={styles.newCardButtonImage}
         resizeMode="contain"
       />
-      <Text style={styles.newCardButtonText}>Add new card</Text>
     </View>
   );
 }
