@@ -1,5 +1,4 @@
-import { useNavigation } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
+import { useRouter } from "expo-router"; // Importul corect pentru Expo Router
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -12,25 +11,20 @@ import {
 } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
-import { RootStackParamList, UserData } from "./dashboard";
-
-type LoginPageNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Mock backend function for login
-async function mockLoginAPI(
-  telefon: string,
-  parola: string,
-): Promise<{ success: boolean; message?: string }> {
+// --- MOCK API ---
+async function mockLoginAPI(telefon: string, parola: string) {
   await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  if (telefon === "1234567890" && parola === "test123") {
+  // Folosim .trim() pentru a elimina spațiile accidentale
+  if (telefon.trim() === "1234567890" && parola.trim() === "test123") {
     return { success: true };
   }
   return { success: false, message: "Telefon sau parolă incorectă" };
 }
 
+// --- COMPONENTE SVG ---
 function Group() {
   return (
     <Svg width="515" height="366" viewBox="0 0 515 366" fill="none">
@@ -69,18 +63,17 @@ function Top() {
   );
 }
 
-interface LoginPageProps {
-  onLogin: (data: UserData) => void;
-}
-
-export default function LoginPage({ onLogin }: LoginPageProps) {
-  const navigation = useNavigation<LoginPageNavigationProp>();
+// --- PAGINA PRINCIPALĂ ---
+export default function LoginPage() {
+  const router = useRouter();
   const [telefon, setTelefon] = useState("");
   const [parola, setParola] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const DEMO_PHONE = "1234567890";
   const DEMO_PASS = "test123";
+
   const handleLogin = async () => {
     setError("");
     setLoading(true);
@@ -89,8 +82,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       const result = await mockLoginAPI(telefon, parola);
 
       if (result.success) {
-        onLogin({ telefon, parola });
-        navigation.navigate("Cards");
+        // Navigăm către Dashboard din folderul (tabs)
+        // Folosim replace pentru a nu se mai putea întoarce la Login cu butonul Back
+        router.replace("/(tabs)/dashboard");
       } else {
         setError(result.message || "Eroare la autentificare");
       }
@@ -103,7 +97,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   return (
     <View style={styles.container}>
-      {/* Background shapes */}
+      {/* Fundal decorativ */}
       <View style={styles.backgroundGroup}>
         <View style={styles.groupTransform}>
           <Group />
@@ -114,10 +108,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
       <Text style={styles.welcomeText}>Welcome Back Amalia!</Text>
 
-      {/* Telefon Field */}
-      <View style={styles.telefonContainer}>
+      {/* Câmp Telefon */}
+      <View style={styles.inputContainerTop}>
         <TextInput
-          placeholder="Telefon"
+          placeholder="Telefon (ex: 1234567890)"
           value={telefon}
           onChangeText={setTelefon}
           style={styles.input}
@@ -126,10 +120,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         />
       </View>
 
-      {/* Parola Field */}
-      <View style={styles.parolaContainer}>
+      {/* Câmp Parolă */}
+      <View style={styles.inputContainerBottom}>
         <TextInput
-          placeholder="Parolă"
+          placeholder="Parolă (ex: test123)"
           value={parola}
           onChangeText={setParola}
           style={styles.input}
@@ -138,16 +132,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         />
       </View>
 
-      {/* Error or Demo Message */}
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : (
-        <Text style={styles.demoText}>
-          {`Demo: telefon "${DEMO_PHONE}" / parolă "${DEMO_PASS}"`}
-        </Text>
-      )}
+      {/* Mesaj de eroare sau demo */}
+      <View style={styles.messageArea}>
+        {error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : (
+          <Text style={styles.demoText}>
+            {`„Demo: telefon „${DEMO_PHONE}” / parolă „${DEMO_PASS}””`}
+          </Text>
+        )}
+      </View>
 
-      {/* Login Button */}
+      {/* Buton Login */}
       <TouchableOpacity
         style={styles.loginButton}
         onPress={handleLogin}
@@ -160,17 +156,21 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         )}
       </TouchableOpacity>
 
-      {/* Voice Auth Link */}
-      <TouchableOpacity onPress={() => navigation.navigate("VoiceAuth")}>
-        <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
-      </TouchableOpacity>
+      {/* Link-uri Navigare */}
+      <View style={styles.linksContainer}>
+        <TouchableOpacity
+          onPress={() => router.push("../VoiceAuth")}
+          style={styles.linkSpacing}
+        >
+          <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
+        </TouchableOpacity>
 
-      {/* Register Link */}
-      <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-        <Text style={styles.registerText}>Înregistreză-te</Text>
-      </TouchableOpacity>
+        {/* <TouchableOpacity onPress={() => router.push("Register")}>
+          <Text style={styles.registerText}>Înregistrează-te</Text>
+        </TouchableOpacity> */}
+      </View>
 
-      {/* Home indicator */}
+      {/* Indicator Home */}
       <View style={styles.homeIndicator}>
         <Svg width="100" height="5" viewBox="0 0 100 5" fill="none">
           <Line
@@ -188,21 +188,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   );
 }
 
+// --- STILURI ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     backgroundColor: "white",
     borderRadius: 40,
     overflow: "hidden",
-    position: "relative",
   },
   topContainer: {
     position: "absolute",
     top: 0,
     left: 0,
-    width: 375,
+    width: "100%",
     height: 43,
   },
   backgroundGroup: {
@@ -216,68 +214,57 @@ const styles = StyleSheet.create({
     transform: [{ scaleY: -1 }],
   },
   welcomeText: {
-    position: "absolute",
-    top: 329,
-    left: 0,
-    right: 0,
+    marginTop: 330,
     fontSize: 24,
     fontWeight: "bold",
     color: "#1a1a1a",
     textAlign: "center",
   },
-  telefonContainer: {
-    position: "absolute",
-    top: 429,
-    left: 16,
-    right: 179,
-    height: 45,
-    backgroundColor: "white",
+  inputContainerTop: {
+    marginTop: 50,
+    marginHorizontal: 30,
+    height: 50,
     borderWidth: 1,
     borderColor: "#1a1a1a",
     borderRadius: 10,
     justifyContent: "center",
+    backgroundColor: "white",
   },
-  parolaContainer: {
-    position: "absolute",
-    top: 494,
-    left: 16,
-    right: 168,
-    height: 47,
-    backgroundColor: "white",
+  inputContainerBottom: {
+    marginTop: 15,
+    marginHorizontal: 30,
+    height: 50,
     borderWidth: 1,
     borderColor: "#1a1a1a",
     borderRadius: 10,
     justifyContent: "center",
+    backgroundColor: "white",
   },
   input: {
     paddingHorizontal: 15,
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "600",
     color: "#1a1a1a",
   },
+  messageArea: {
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 5,
+  },
   errorText: {
-    position: "absolute",
-    top: 550,
-    left: 30,
-    right: 30,
-    textAlign: "center",
     color: "#dc2626",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   demoText: {
-    position: "absolute",
-    top: 545,
-    left: 30,
-    right: 30,
-    textAlign: "center",
     color: "#6b7280",
-    fontSize: 9,
+    fontSize: 10,
+    textAlign: "center",
   },
   loginButton: {
-    position: "absolute",
-    top: 591,
-    left: 106,
+    alignSelf: "center",
+    marginTop: 10,
     width: 180,
     height: 50,
     backgroundColor: "#1a1a1a",
@@ -290,20 +277,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  linksContainer: {
+    marginTop: 30,
+    alignItems: "center",
+  },
+  linkSpacing: {
+    marginBottom: 60,
+  },
   voiceAuthText: {
-    position: "absolute",
-    top: 665,
-    left: 130,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "bold",
     color: "black",
     textDecorationLine: "underline",
   },
   registerText: {
-    position: "absolute",
-    top: 758,
-    left: 148,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "600",
     fontStyle: "italic",
     color: "black",
@@ -311,9 +299,7 @@ const styles = StyleSheet.create({
   },
   homeIndicator: {
     position: "absolute",
-    left: 137,
-    top: 792,
-    width: 100,
-    height: 5,
+    bottom: 20,
+    alignSelf: "center",
   },
 });

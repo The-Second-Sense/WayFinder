@@ -9,7 +9,6 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { RootStackParamList } from "../app/(tabs)/dashboard";
 import svgPaths from "../hooks/svg-5kazw1th4l";
 
 type VoiceAuthNavigationProp = StackNavigationProp<

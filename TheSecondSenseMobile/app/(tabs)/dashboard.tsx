@@ -1,53 +1,89 @@
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
-import React, { useState } from "react";
-import { SafeAreaView, StatusBar, StyleSheet, View } from "react-native";
+import { CreditCard, Receipt, Send, TrendingUp } from "lucide-react-native";
+import React from "react";
+import { Alert, SafeAreaView, StatusBar, StyleSheet, View } from "react-native";
 
-// Componente Dashboard
+// Importuri Componente
 import { AccountOverview } from "@/components/AccountOverview";
 import { QuickActions } from "@/components/QuickActions";
-import { TransactionList } from "@/components/TransactionList";
+import { Transaction, TransactionList } from "@/components/TransactionList";
 import { TransferForm } from "@/components/TransferForm";
 
-// Alte pagini
-import WelcomePage from "@/app/(tabs)/index";
-import LoginPage from "@/app/(tabs)/login";
-import CardsHolderPage from "@/components/CardsHolderPage";
-import InregistrareVoce from "@/components/InregistrareVoce";
-import InregistrareVoce2 from "@/components/InregistrareVoce2";
-import RegisterPage from "@/components/RegisterPage";
-import VoiceAuth from "@/components/VoiceAuth";
+// Date de test (Mock Data) pentru a vedea lista populată
+const MOCK_TRANSACTIONS: Transaction[] = [
+  {
+    id: "1",
+    type: "debit",
+    amount: 45.5,
+    description: "Starbucks",
+    category: "food",
+    date: "04 Feb",
+    time: "09:15",
+  },
+  {
+    id: "2",
+    type: "credit",
+    amount: 2500.0,
+    description: "Salariu",
+    category: "transfer",
+    date: "01 Feb",
+    time: "10:00",
+  },
+  {
+    id: "3",
+    type: "debit",
+    amount: 120.0,
+    description: "ZARA",
+    category: "shopping",
+    date: "30 Ian",
+    time: "18:30",
+  },
+  {
+    id: "4",
+    type: "debit",
+    amount: 350.0,
+    description: "Factură Enel",
+    category: "utilities",
+    date: "28 Ian",
+    time: "12:00",
+  },
+];
 
-// --- TIPURI ȘI CONFIGURARE NAVIGARE ---
-export type RootStackParamList = {
-  Welcome: undefined;
-  Login: undefined;
-  Register: undefined;
-  VoiceAuth: undefined;
-  InregistrareVoce: undefined;
-  InregistrareVoce2: undefined;
-  Cards: undefined;
-  Dashboard: undefined;
-};
+export default function DashboardScreen() {
+  // Array-ul pentru QuickActions cu funcții reale de Alert
+  const actions = [
+    {
+      icon: Send,
+      label: "Trimite",
+      onClick: () => Alert.alert("Acțiune", "Ecran Transfer deschis"),
+    },
+    {
+      icon: Receipt,
+      label: "Facturi",
+      onClick: () => Alert.alert("Acțiune", "Ecran Facturi deschis"),
+    },
+    {
+      icon: CreditCard,
+      label: "Carduri",
+      onClick: () => Alert.alert("Acțiune", "Management Carduri"),
+    },
+    {
+      icon: TrendingUp,
+      label: "Investiții",
+      onClick: () => Alert.alert("Acțiune", "Bursa și Crypto"),
+    },
+  ];
 
-export interface UserData {
-  nume?: string;
-  telefon?: string;
-  email?: string;
-  parola?: string;
-}
-
-const Stack = createStackNavigator<RootStackParamList>();
-
-// --- COMPONENTA DASHBOARD (Pagina Unită) ---
-// Am extras logica de dashboard aici pentru a curăța componenta App
-function DashboardScreen() {
   return (
     <SafeAreaView style={styles.container}>
+      {/* Controlăm bara de stare a telefonului */}
       <StatusBar barStyle="dark-content" />
+
+      {/* IMPORTANT: TransactionList conține FlatList-ul principal.
+          Folosim ListHeaderComponent pentru a randa restul elementelor (Overview, Actions, Form).
+          ASTA elimină eroarea de VirtualizedList nested inside ScrollView.
+      */}
       <TransactionList
-        transactions={[]} // Adaugă datele tale aici
-        // REZOLVARE EROARE: Mutăm restul componentelor în Header-ul listei
+        transactions={MOCK_TRANSACTIONS}
         ListHeaderComponent={
           <View style={styles.headerPadding}>
             <AccountOverview
@@ -56,51 +92,26 @@ function DashboardScreen() {
               accountNumber="RO12BTRL..."
               monthlyChange={150.2}
             />
-            <QuickActions actions={[]} />
-            <TransferForm onTransfer={(r, a, t) => console.log(r, a, t)} />
+
+            <QuickActions actions={actions} />
+
+            <TransferForm
+              onTransfer={(recipient, amount, type) =>
+                Alert.alert(
+                  "Transfer Nou",
+                  `Vrei să trimiți ${amount} RON către ${recipient}?`,
+                )
+              }
+            />
+
+            {/* Titlul listei de tranzacții */}
+            <View style={styles.listTitleContainer}>
+              {/* Acesta va apărea chiar deasupra primului item din listă */}
+            </View>
           </View>
         }
       />
     </SafeAreaView>
-  );
-}
-
-// --- COMPONENTA PRINCIPALĂ APP ---
-export default function App() {
-  const [userData, setUserData] = useState<UserData>({});
-
-  return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="Welcome"
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: "#f3f4f6" },
-        }}
-      >
-        <Stack.Screen name="Welcome" component={WelcomePage} />
-
-        <Stack.Screen name="Login">
-          {(props) => (
-            <LoginPage {...props} onLogin={(data) => setUserData(data)} />
-          )}
-        </Stack.Screen>
-
-        <Stack.Screen name="Register">
-          {(props) => (
-            <RegisterPage {...props} onRegister={(data) => setUserData(data)} />
-          )}
-        </Stack.Screen>
-
-        <Stack.Screen name="VoiceAuth" component={VoiceAuth} />
-        <Stack.Screen name="InregistrareVoce" component={InregistrareVoce} />
-        <Stack.Screen name="InregistrareVoce2" component={InregistrareVoce2} />
-        <Stack.Screen name="Cards" component={CardsHolderPage} />
-
-        {/* Folosim noua componentă DashboardScreen creată mai sus */}
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
   );
 }
 
@@ -111,5 +122,9 @@ const styles = StyleSheet.create({
   },
   headerPadding: {
     padding: 16,
+  },
+  listTitleContainer: {
+    marginTop: 20,
+    marginBottom: 10,
   },
 });
