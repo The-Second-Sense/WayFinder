@@ -1,6 +1,10 @@
 import modal
 from pydantic import BaseModel
 
+#
+# NEXT PHASE : IMPLEMENT dumitrescustefan/bert-base-romanian-ner
+#
+
 # 1. Setup App and Cache Volume
 app = modal.App("deberta-romanian-api")
 cache_volume = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
@@ -39,7 +43,7 @@ class ZeroShotModel:
         self.classifier = pipeline(
             "zero-shot-classification",
             model="",
-            device=0 #gpuMoritzLaurer/mDeBERTa-v3-base-mnli-xnli
+            device=0 #gpu
         )
         print(f"Model loaded in {time.time() - start:.2f}s")
 

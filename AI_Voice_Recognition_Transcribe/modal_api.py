@@ -87,12 +87,7 @@ class SecurityAgent:
             # 3. Load Audio (Use the clean WAV now)
             signal, fs = torchaudio.load(clean_wav_path)
 
-            # 4. (Resampling is now handled by ffmpeg above, but we keep safety check)
-            if fs != 16000:
-                resampler = torchaudio.transforms.Resample(fs, 16000)
-                signal = resampler(signal)
-
-            # 5. Generate Embedding
+            # 4. Generate Embedding
             inputs = self.feature_extractor(
                 signal.squeeze().numpy(),
                 sampling_rate=16000,
@@ -103,18 +98,18 @@ class SecurityAgent:
                 new_embeddings = self.verifier(**inputs).embeddings
                 new_embeddings = torch.nn.functional.normalize(new_embeddings, dim=-1)
 
-            # 6. Compare
+            # 5. Compare
             score = torch.nn.functional.cosine_similarity(new_embeddings, ref_tensor).item()
             print(f"Similarity Score: {score}")
 
             if score < 0.75:
                 return {"status": "DENIED", "score": score, "reason": "Voice mismatch"}
 
-            # 7. Transcribe (Use the clean WAV file)
+            # 6. Transcribe (Use the clean WAV file)
             res = self.transcriber(clean_wav_path, generate_kwargs={"language": "romanian"})
             text = res["text"].strip()
 
-            # 8. Intent
+            # 7. Intent
             intent_data = {}
             if item.deberta_url:
                 try:
@@ -143,3 +138,4 @@ class SecurityAgent:
                 os.remove(input_path)
             if os.path.exists(clean_wav_path):
                 os.remove(clean_wav_path)
+
