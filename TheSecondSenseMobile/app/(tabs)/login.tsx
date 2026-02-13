@@ -165,9 +165,9 @@ export default function LoginPage() {
           <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
         </TouchableOpacity>
 
-        {/* <TouchableOpacity onPress={() => router.push("Register")}>
+        <TouchableOpacity onPress={() => router.push("./register")}>
           <Text style={styles.registerText}>Înregistrează-te</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>
       </View>
 
       {/* Indicator Home */}

@@ -6,6 +6,7 @@ export default function RootLayout() {
       {/* Aceste nume trebuie să corespundă cu numele fișierelor tale din folderul app */}
       <Stack.Screen name="(tabs)/index" />
       <Stack.Screen name="(tabs)/login" />
+      <Stack.Screen name="(tabs)/register" />
       <Stack.Screen name="VoiceAuth" /> {/* VoiceAuth */}
       <Stack.Screen name="(tabs)/dashboard" />
     </Stack>
