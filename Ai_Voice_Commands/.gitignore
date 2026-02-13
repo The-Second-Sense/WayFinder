@@ -4,7 +4,9 @@
 
 # Sensitive files
 .env
-
+bert-base-romanian-ner/*.json
+bert-base-romanian-ner/ner_training_logs/
+bert-base-romanian-ner/banking-ner-model/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

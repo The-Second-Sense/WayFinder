@@ -10,8 +10,8 @@ from dotenv import load_dotenv
 # --- CONFIGURATION ---
 load_dotenv()
 
-AGENT_URL = os.getenv("AGENT_URL")
-DEBERTA_URL = os.getenv("DEBERTA_URL")
+AGENT_URL = os.getenv("RECOGNITION_AGENT_URL")
+DEBERTA_URL = os.getenv("INTENT_AGENT_URL")
 
 REFERENCE_FILENAME = "reference.m4a"
 COMMAND_FILENAME = "command.m4a"

@@ -14,7 +14,7 @@ model_cache = modal.Volume.from_name("my-model-cache", create_if_missing=True)
 class SecureRequest(BaseModel):
     current_voice_base64: str
     reference_fingerprint: list
-    deberta_url: str
+    intent_agent_url: str
 
 
 # --- CHANGE 2: FORCE PYTHON 3.11 & STABLE LIBRARIES ---
@@ -111,9 +111,9 @@ class SecurityAgent:
 
             # 7. Intent
             intent_data = {}
-            if item.deberta_url:
+            if item.intent_agent_url:
                 try:
-                    r = requests.post(item.deberta_url, json={
+                    r = requests.post(item.intent_agent_url, json={
                         "text": text,
                         "labels": ["TRANSFER", "SOLD", "TRANZACTII", "ADAUGA_BENEFICIAR", "PLATA_FACTURI", "ALTELE"]
                     })
