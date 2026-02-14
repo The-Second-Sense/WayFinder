@@ -1,6 +1,7 @@
 {
   "expo": {
-    "name": "Way Finder Mobile",
+    "name": "",
+    "slug": "",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo-wayfinder.jpeg",

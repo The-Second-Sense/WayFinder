@@ -7,7 +7,8 @@ import {
   Zap,
 } from "lucide-react-native";
 import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+// 1. ADAUGĂ RefreshControl AICI
+import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 export interface Transaction {
   id: string;
@@ -19,10 +20,11 @@ export interface Transaction {
   time: string;
 }
 
-// 1. Am adăugat ListHeaderComponent în interfață pentru a scăpa de eroarea TS
 interface TransactionListProps {
   transactions: Transaction[];
   ListHeaderComponent?: React.ReactElement;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -34,10 +36,11 @@ const categoryIcons: Record<string, any> = {
   default: ArrowDownLeft,
 };
 
-// 2. Extragem ListHeaderComponent aici
 export function TransactionList({
   transactions,
   ListHeaderComponent,
+  onRefresh, // 2. EXTRAGE-LE AICI
+  refreshing, // 2. EXTRAGE-LE AICI
 }: TransactionListProps) {
   const renderItem = ({ item: transaction }: { item: Transaction }) => {
     const IconComponent =
@@ -86,21 +89,31 @@ export function TransactionList({
 
   return (
     <View style={styles.card}>
-      {/* IMPORTANT: FlatList-ul devine acum scroll-ul principal.
-          Am scos style={{ height: 400 }} pentru ca lista să se poată extinde.
-      */}
       <FlatList
         data={transactions}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing || false}
+              onRefresh={onRefresh}
+              tintColor="#FFED00" // Opțional: culoarea spinner-ului pe iOS
+            />
+          ) : undefined
+        }
         ListHeaderComponent={
           <>
-            {/* Aici injectăm restul componentelor (Overview, Actions, Form) */}
             {ListHeaderComponent}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Tranzacții Recente</Text>
             </View>
           </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Nu există tranzacții recente.</Text>
+          </View>
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -161,5 +174,13 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 15,
     fontWeight: "bold",
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#999",
+    fontSize: 14,
   },
 });

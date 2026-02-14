@@ -1,16 +1,16 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import Svg, { G, Path } from "react-native-svg";
@@ -76,7 +76,7 @@ export default function Registration() {
 
     try {
       // ATENTIE: Adaugă URL-ul API-ului tău aici
-      const response = await fetch("https://api.exemplu.com/register", {
+      const response = await fetch("https://localhost/8080/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
