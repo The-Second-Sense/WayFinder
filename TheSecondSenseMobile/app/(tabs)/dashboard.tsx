@@ -1,22 +1,18 @@
 import { router } from "expo-router";
+import * as Speech from "expo-speech";
 import {
-  Bell,
   Building,
   CreditCard,
-  Lock,
-  MessageSquare,
   Mic,
   PieChart,
   Receipt,
   Send,
-  X,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -24,37 +20,40 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-// Importuri Componente (Asigură-te că aceste căi sunt corecte în proiectul tău)
 import { AccountOverview } from "@/components/AccountOverview";
 import { QuickActions } from "@/components/QuickActions";
 import { TransactionList } from "@/components/TransactionList";
-import { TransferForm } from "@/components/TransferForm";
 
 export default function DashboardScreen() {
-  // 1. STATE-URI
   const [accountData, setAccountData] = useState({
     balance: 0,
     name: "Utilizator",
     accountNumber: "RO00 BNRB 0000 0000",
     monthlyChange: 0,
   });
+
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // State-uri pentru Asistentul Vocal
+  const [voiceSessionId] = useState(Math.random().toString());
+  const [pendingAction, setPendingAction] = useState<any>(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+
+  const [seniorMode, setSeniorMode] = useState(true);
+
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
-  const [isVoiceRegistered, setIsVoiceRegistered] = useState(true); // Schimbă pe false pentru a testa blocarea
+  const [isVoiceRegistered] = useState(true);
+
   const [botMessage, setBotMessage] = useState(
     "Te ascult... Ce operațiune dorești să facem?",
   );
   const [userTranscription, setUserTranscription] = useState("");
 
-  // 2. FETCH DATA DIN API
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      // Înlocuiește cu endpoint-urile tale reale
       const [accountRes, transactionsRes] = await Promise.all([
         fetch("https://api.exemplu.ro/account"),
         fetch("https://api.exemplu.ro/transactions"),
@@ -66,8 +65,6 @@ export default function DashboardScreen() {
       setAccountData(accountJson);
       setTransactions(transactionsJson);
     } catch (error) {
-      console.error("Eroare la încărcare:", error);
-      // Fallback date demo dacă API-ul nu e gata
       setAccountData({
         balance: 12450.75,
         name: "Alex Ionescu",
@@ -79,28 +76,63 @@ export default function DashboardScreen() {
     }
   };
 
+  const processVoiceCommand = async (text: string) => {
+    try {
+      setIsProcessingVoice(true);
+      setUserTranscription(text);
+
+      const res = await fetch("https://api.exemplu.ro/api/voice/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sessionId: voiceSessionId }),
+      });
+
+      const data = await res.json();
+
+      setBotMessage(data.message);
+
+      Speech.speak(data.message, {
+        language: "ro-RO",
+        rate: 0.9,
+      });
+
+      if (data.requiresConfirmation) {
+        setPendingAction(data.payload);
+      } else {
+        setPendingAction(null);
+      }
+    } catch (error) {
+      setBotMessage("Momentan serviciul nu este disponibil.");
+      Speech.speak("Momentan serviciul nu este disponibil.");
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const confirmAction = () => {
+    if (!pendingAction) return;
+    processVoiceCommand("CONFIRM");
+    setPendingAction(null);
+  };
+
+  const cancelAction = () => {
+    processVoiceCommand("CANCEL");
+    setPendingAction(null);
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // 3. HANDLERS
   const handleVoiceCommandAction = () => {
     if (!isVoiceRegistered) {
       Alert.alert(
         "Amprentă Vocală Necesară",
-        "Pentru siguranța ta, trebuie să îți înregistrezi vocea înainte de a folosi comenzi vocale.",
-        [
-          { text: "Anulează" },
-          {
-            text: "Spre Înregistrare",
-            onPress: () => router.push("/"),
-          },
-        ],
+        "Trebuie să îți înregistrezi vocea pentru securitate.",
       );
       return;
     }
     setIsVoiceModalVisible(true);
-    // Aici pornește logica voastră de bot (Voice recognition)
   };
 
   const actions = [
@@ -112,12 +144,12 @@ export default function DashboardScreen() {
     {
       icon: Receipt,
       label: "Facturi",
-      onClick: () => Alert.alert("Info", "Modul Facturi"),
+      onClick: () => router.push("/facturi"),
     },
     {
       icon: CreditCard,
       label: "Carduri",
-      onClick: () => Alert.alert("Info", "Modul Carduri"),
+      onClick: () => router.push("/cards"),
     },
     {
       icon: Building,
@@ -138,23 +170,23 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* HEADER PERSONALIZAT */}
+      {/* HEADER */}
       <View style={styles.topHeader}>
         <View>
+          <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
           <Text style={styles.greeting}>Bună ziua,</Text>
-          <Text style={styles.userName}>{accountData.name}</Text>
+          <Text style={[styles.userName, { fontSize: seniorMode ? 24 : 18 }]}>
+            {accountData.name}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.notificationBtn}>
-          <Bell size={22} color="#1A1A1A" />
-          <View style={styles.notifBadge} />
+        <TouchableOpacity onPress={() => setSeniorMode(!seniorMode)}>
+          <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+            {seniorMode ? "Mod Normal" : "Mod Senior"}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* SOLD CONT */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.mainCardContainer}>
           <AccountOverview
             balance={accountData.balance}
@@ -164,16 +196,12 @@ export default function DashboardScreen() {
           />
         </View>
 
-        {/* ACȚIUNI RAPIDE */}
         <View style={styles.sectionContainer}>
           <QuickActions actions={actions} />
         </View>
 
-        {/* WIDGET ANALITICE */}
         <View style={styles.statsCard}>
-          <View style={styles.statsIcon}>
-            <PieChart size={22} color="#EAB308" />
-          </View>
+          <PieChart size={22} color="#EAB308" />
           <View style={{ flex: 1 }}>
             <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
             <Text style={styles.statsSubtitle}>
@@ -182,79 +210,67 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* FORMULAR TRANSFER RAPID */}
-        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-          <TransferForm
-            onTransfer={(to, amt) =>
-              Alert.alert("Succes", `Trimis ${amt} RON către ${to}`)
-            }
-          />
-        </View>
-
-        {/* PREVIEW TRANZACȚII */}
         <View style={styles.transactionSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Activitate Recentă</Text>
-            <TouchableOpacity onPress={() => router.push("/transaction")}>
-              <Text style={styles.seeAllText}>Vezi tot</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>Activitate Recentă</Text>
           <View style={styles.listWrapper}>
             <TransactionList transactions={transactions.slice(0, 4)} />
           </View>
         </View>
       </ScrollView>
 
-      {/* BUTOANE PLUTITOARE (FAB) */}
+      {/* FAB */}
       <View style={styles.fabContainer}>
         <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => Alert.alert("Chat", "Asistență disponibilă")}
-        >
-          <MessageSquare size={20} color="#1A1A1A" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.fabMain, !isVoiceRegistered && styles.fabLocked]}
+          style={[
+            styles.fabMain,
+            { width: seniorMode ? 90 : 60, height: seniorMode ? 90 : 60 },
+          ]}
           onPress={handleVoiceCommandAction}
         >
-          {isVoiceRegistered ? (
-            <Mic size={28} color="#000" />
-          ) : (
-            <Lock size={22} color="#666" />
-          )}
+          <Mic size={seniorMode ? 40 : 28} color="#000" />
         </TouchableOpacity>
       </View>
 
-      {/* MODAL ASISTENT VOCAL */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isVoiceModalVisible}
-        onRequestClose={() => setIsVoiceModalVisible(false)}
-      >
+      {/* MODAL */}
+      <Modal visible={isVoiceModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.assistantCard}>
-            <View style={styles.modalHandle} />
+            <Mic size={35} color="#000" />
 
-            <View style={styles.voiceWaveContainer}>
-              <Mic size={35} color="#000" />
-            </View>
+            {isProcessingVoice && (
+              <ActivityIndicator size="large" color="#FFED00" />
+            )}
 
             <Text style={styles.botText}>{botMessage}</Text>
 
             <View style={styles.transcriptionBox}>
               <Text style={styles.transcriptionText}>
-                {userTranscription || "Ex: 'Câți bani am în cont?'"}
+                {userTranscription || "Spune comanda ta..."}
               </Text>
             </View>
 
+            {/* Confirmare */}
+            {pendingAction && (
+              <View style={styles.confirmBox}>
+                <TouchableOpacity onPress={confirmAction}>
+                  <Text style={styles.confirmBtn}>✅ Confirmă</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={cancelAction}>
+                  <Text style={styles.cancelBtn}>❌ Anulează</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity
-              style={styles.closeAssistantBtn}
-              onPress={() => setIsVoiceModalVisible(false)}
+              onPress={() => processVoiceCommand("Trimite 200 lei Mariei")}
             >
-              <X size={20} color="#666" />
-              <Text style={styles.closeAssistantText}>Închide</Text>
+              <Text style={{ fontWeight: "600", marginTop: 10 }}>
+                Simulează comandă
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setIsVoiceModalVisible(false)}>
+              <Text style={{ marginTop: 10 }}>Închide</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -267,107 +283,45 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8F9FA" },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   scrollContent: { paddingBottom: 100 },
+  secureText: { fontSize: 12, color: "green", marginBottom: 4 },
+  greeting: { fontSize: 13, color: "#555" },
+  userName: { fontWeight: "700", color: "#000" },
   topHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
-  greeting: { fontSize: 13, color: "#888" },
-  userName: { fontSize: 18, fontWeight: "700", color: "#1A1A1A" },
-  notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  notifBadge: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    width: 8,
-    height: 8,
-    backgroundColor: "#FF4D4D",
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: "#fff",
-  },
-  mainCardContainer: { paddingHorizontal: 16, marginTop: 5 },
+  mainCardContainer: { paddingHorizontal: 16 },
   sectionContainer: { marginTop: 15 },
   statsCard: {
-    marginHorizontal: 16,
-    marginTop: 20,
+    margin: 16,
     padding: 16,
     backgroundColor: "#1A1A1A",
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 15,
+    gap: 10,
   },
-  statsIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "rgba(234, 179, 8, 0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statsTitle: { color: "#fff", fontWeight: "600", fontSize: 15 },
-  statsSubtitle: { color: "#888", fontSize: 12, marginTop: 2 },
+  statsTitle: { color: "#fff", fontWeight: "600" },
+  statsSubtitle: { color: "#ccc", fontSize: 12 },
   transactionSection: { marginTop: 25, paddingHorizontal: 16 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A1A" },
-  seeAllText: { color: "#007AFF", fontWeight: "600", fontSize: 14 },
+  sectionTitle: { fontSize: 17, fontWeight: "700" },
   listWrapper: {
     backgroundColor: "#fff",
     borderRadius: 16,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
   },
-  // FAB STYLES
   fabContainer: {
     position: "absolute",
     bottom: 30,
     right: 20,
-    alignItems: "center",
-    gap: 12,
   },
   fabMain: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    borderRadius: 50,
     backgroundColor: "#FFED00",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
+    elevation: 6,
   },
-  fabSmall: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#EEE",
-  },
-  fabLocked: { backgroundColor: "#E0E0E0" },
-  // MODAL STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -379,47 +333,28 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     padding: 25,
     alignItems: "center",
-    paddingBottom: 40,
-  },
-  modalHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: "#EEE",
-    borderRadius: 3,
-    marginBottom: 20,
-  },
-  voiceWaveContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#FFED00",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
   },
   botText: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 10,
+    marginVertical: 10,
   },
   transcriptionBox: {
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#F1F1F1",
     padding: 15,
     borderRadius: 12,
     width: "100%",
-    marginVertical: 15,
   },
   transcriptionText: {
-    color: "#777",
-    fontStyle: "italic",
+    color: "#333",
     textAlign: "center",
   },
-  closeAssistantBtn: {
+  confirmBox: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 10,
+    gap: 20,
+    marginTop: 15,
   },
-  closeAssistantText: { color: "#666", fontWeight: "600" },
+  confirmBtn: { color: "green", fontWeight: "700" },
+  cancelBtn: { color: "red", fontWeight: "700" },
 });

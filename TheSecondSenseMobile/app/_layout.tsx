@@ -9,6 +9,9 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)/register" />
       <Stack.Screen name="VoiceAuth" /> {/* VoiceAuth */}
       <Stack.Screen name="(tabs)/dashboard" />
+      <Stack.Screen name="(tabs)/transaction" />
+      <Stack.Screen name="(tabs)/cards" />
+      <Stack.Screen name="(tabs)/facturi" />
     </Stack>
   );
 }
