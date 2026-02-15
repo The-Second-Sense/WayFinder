@@ -9,7 +9,7 @@ ner_pipe = pipeline(
 )
 
 # 2. Give it a sentence it has NEVER seen before
-test_sentence = "Salut, vreau să fac un transfer de 450 de lei către prietenul meu Alexandru Popescu."
+test_sentence = "la cine am trimis banii in ultimele zile"
 
 # 3. Ask the model to extract the entities
 print(f"\nAnalyzing: '{test_sentence}'\n")

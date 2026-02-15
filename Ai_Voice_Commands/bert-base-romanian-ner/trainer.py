@@ -44,13 +44,17 @@ id2label = {
     5: "I-BENEFICIAR",
     6: "B-FACTURA",
     7: "I-FACTURA",
+    8: "B-SOLD",
+    9: "I-SOLD",
+    10: "B-TRANZACTII",
+    11: "I-TRANZACTII",
 }
 
 label2id = {v: k for k, v in id2label.items()}
 
 model = AutoModelForTokenClassification.from_pretrained(
     "dumitrescustefan/bert-base-romanian-ner",
-    num_labels=8,
+    num_labels=12,
     id2label=id2label,
     label2id=label2id,
     ignore_mismatched_sizes=True

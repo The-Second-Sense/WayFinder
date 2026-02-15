@@ -48,15 +48,24 @@ class IntentAgent:
 
         if "FACTURA" in extracted_data:
             intent_label = "PLATA_FACTURI"
+
         elif "SUMA" in extracted_data and "VALUTA" in extracted_data and "BENEFICIAR" in extracted_data:
             intent_label = "TRANSFER"
+
         elif "BENEFICIAR" in extracted_data and "SUMA" not in extracted_data:
             intent_label = "ADAUGA_BENEFICIAR"
+
+        elif "SOLD" in extracted_data:
+            intent_label = "SOLD"
+
+        elif "TRANZACTII" in extracted_data:
+            intent_label = "TRANZACTII"
+
+        elif "SUMA" in extracted_data and "BENEFICIAR" in extracted_data:
+            intent_label = "TRANSFER"
+
 
         return {
             "intent": intent_label,
             "entities": extracted_data
         }
-
-# !!! THIS IS VERSION 1, THE MODEL IS NOT TRAINED TO RECOGNIZE BALANCE INQUIRIES YET, SO WE'LL LABEL THEM AS "ALTELE" FOR NOW.
-# IN THE NEXT PHASE, WE'LL TRAIN THE MODEL TO RECOGNIZE "SOLD" AS WELL.
