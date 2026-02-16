@@ -15,7 +15,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 function Frame() {
   return (
     <View style={styles.frameContainer}>
-      <Svg width={SCREEN_WIDTH} height="43" viewBox="0 0 375 43" fill="none">
+      <Svg width={SCREEN_WIDTH} height="50" viewBox="0 0 375 43" preserveAspectRatio="none" fill="none">
         <G id="top">
           <Path d={svgPaths.p2ab9d800} stroke="white" opacity={0.35} />
           <Path d={svgPaths.p3fcc1700} fill="white" opacity={0.4} />
@@ -66,17 +66,14 @@ function MdiScanHelper() {
 }
 
 export default function InregistrareVoce() {
-  //const navigation = useNavigation<InregistrareVoceNavigationProp>();
   const router=useRouter();
 
   const handlePoateDataViitoare = () => {
     console.log("User chose to skip voice registration");
-    //navigation.navigate("Cards");
     router.replace("/(tabs)/dashboard");
   };
 
   const handlePermite = () => {
-   // navigation.navigate("InregistrareVoce2");
     router.replace("./VoiceRegistration2");
   };
 
@@ -84,53 +81,53 @@ export default function InregistrareVoce() {
     <View style={styles.container}>
       {/* Background yellow shape */}
       <View style={styles.yellowBackground}>
-        <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} viewBox="0 0 375 861" fill="none">
+        <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} viewBox="0 0 375 861" preserveAspectRatio="none" fill="none">
           <Path d={svgPaths.p2983ec10} fill="#FFED00" fillOpacity={0.68} />
         </Svg>
       </View>
 
       <Frame />
 
-      <Text style={styles.titleText}>
-        Configurează{"\n"}autentificarea{"\n"}prin voce
-      </Text>
+        <View style={styles.content}>
+            <Text style={styles.titleText}>
+                Configurează{"\n"}autentificarea{"\n"}prin voce
+            </Text>
 
-      <MdiScanHelper />
+            <MdiScanHelper />
 
-      <Text style={styles.descriptionText}>
-        Vocea ta ne ajută să te recunoaștem în siguranță. Este unică și îți
-        permite să te autentifici mai rapid, fără parole.
-      </Text>
+            <Text style={styles.descriptionText}>
+                Vocea ta ne ajută să te recunoaștem în siguranță. Este unică și îți
+                permite să te autentifici mai rapid, fără parole.
+            </Text>
 
-      {/* Permite Button */}
-      <TouchableOpacity style={styles.permiteButton} onPress={handlePermite}>
-        <Text style={styles.permiteButtonText}>Permite</Text>
-      </TouchableOpacity>
+            {/* Permite Button */}
+            <TouchableOpacity style={styles.permiteButton} onPress={handlePermite}>
+                <Text style={styles.permiteButtonText}>Permite</Text>
+            </TouchableOpacity>
 
-      {/* Poate data viitoare Button */}
-      <TouchableOpacity
-        style={styles.skipButton}
-        onPress={handlePoateDataViitoare}
-      >
-        <Text style={styles.skipButtonText}>Poate data viitoare</Text>
-      </TouchableOpacity>
+            {/* Poate data viitoare Button */}
+            <TouchableOpacity
+                style={styles.skipButton}
+                onPress={handlePoateDataViitoare}
+            >
+                <Text style={styles.skipButtonText}>Poate data viitoare</Text>
+            </TouchableOpacity>
+        </View>
 
-      {/* <Text style={styles.stepText}>Pasul 2 din 2</Text> */}
-
-      {/* Home indicator */}
-      <View style={styles.homeIndicator}>
-        <Svg width="100" height="5" viewBox="0 0 100 5" fill="none">
-          <Line
-            x1="2.5"
-            y1="2.5"
-            x2="97.5"
-            y2="2.5"
-            stroke="white"
-            strokeWidth="5"
-            strokeLinecap="round"
+        <View style={styles.footer}>
+        {/* Home indicator */}
+            <Svg width="100" height="5" viewBox="0 0 100 5" fill="none">
+            <Line
+                x1="2.5"
+                y1="2.5"
+                x2="97.5"
+                y2="2.5"
+                stroke="white"
+                strokeWidth="5"
+                strokeLinecap="round"
           />
         </Svg>
-      </View>
+        </View>
     </View>
   );
 }
@@ -138,21 +135,29 @@ export default function InregistrareVoce() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     backgroundColor: "white",
-    //borderRadius: 20,
-    overflow: "hidden",
-    position: "relative",
+    // width: SCREEN_WIDTH,
+    // height: SCREEN_HEIGHT,
+    // backgroundColor: "white",
+    // //borderRadius: 20,
+    // overflow: "hidden",
+    // position: "relative",
   },
   yellowBackground: {
-    position: "absolute",
-    left: 0,
-    top: -49,
-    width: 375,
-    height: 861,
-    transform: [{ scaleY: -1 }],
+    position: "absolute", 
+    width: SCREEN_WIDTH, 
+    height: SCREEN_HEIGHT, 
+    top: 0, 
+    left: 0, 
+    zIndex: -1,
+    // position: "absolute",
+    // left: 0,
+    // top: -49,
+    // width: 375,
+    // height: 861,
+    // transform: [{ scaleY: -1 }],
   },
+  content: { flex: 1, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", gap: 28, },
   frameContainer: {
     position: "absolute",
     top: 0,
@@ -161,52 +166,57 @@ const styles = StyleSheet.create({
     height: 43,
   },
   titleText: {
-    position: "absolute",
-    top: 117,
-    left: 19,
-    right: 19,
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    textAlign: "center",
-    lineHeight: 44,
+    fontSize: 32, fontWeight: "bold", textAlign: "center", color: "#1a1a1a", lineHeight: 40,
+    // position: "absolute",
+    // top: 117,
+    // left: 19,
+    // right: 19,
+    // fontSize: 36,
+    // fontWeight: "bold",
+    // color: "#1a1a1a",
+    // textAlign: "center",
+    // lineHeight: 44,
   },
   scanHelperContainer: {
-    position: "absolute",
-    left: 112,
-    top: 258,
-    width: 150,
-    height: 150,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 150, height: 150, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center",
+    // position: "absolute",
+    // left: 112,
+    // top: 258,
+    // width: 150,
+    // height: 150,
+    // backgroundColor: "rgba(255, 255, 255, 0.1)",
+    // borderRadius: 20,
+    // justifyContent: "center",
+    // alignItems: "center",
   },
   microphoneContainer: {
-    position: "absolute",
-    width: 70,
-    height: 96,
+    position: "absolute", justifyContent: "center", alignItems: "center",
+    // position: "absolute",
+    // width: 70,
+    // height: 96,
   },
   descriptionText: {
-    position: "absolute",
-    top: 422,
-    left: 58,
-    right: 58,
-    fontSize: 16,
-    color: "#1a1a1a",
-    textAlign: "center",
-    lineHeight: 20,
+    fontSize: 16, textAlign: "center", color: "#1a1a1a", paddingHorizontal: 20, lineHeight: 22,
+    // position: "absolute",
+    // top: 422,
+    // left: 58,
+    // right: 58,
+    // fontSize: 16,
+    // color: "#1a1a1a",
+    // textAlign: "center",
+    // lineHeight: 20,
   },
   permiteButton: {
-    position: "absolute",
-    top: 551,
-    left: 98,
-    width: 180,
-    height: 50,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "#1a1a1a", paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12, marginTop: 10,
+    // position: "absolute",
+    // top: 551,
+    // left: 98,
+    // width: 180,
+    // height: 50,
+    // backgroundColor: "#1a1a1a",
+    // borderRadius: 10,
+    // justifyContent: "center",
+    // alignItems: "center",
   },
   permiteButtonText: {
     color: "white",
@@ -214,34 +224,27 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   skipButton: {
-    position: "absolute",
-    top: 621,
-    left: 98,
-    width: 180,
-    height: 50,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12,
+    // position: "absolute",
+    // top: 621,
+    // left: 98,
+    // width: 180,
+    // height: 50,
+    // borderRadius: 10,
+    // justifyContent: "center",
+    // alignItems: "center",
   },
   skipButtonText: {
     color: "rgba(26, 26, 26, 0.7)",
     fontSize: 18,
     fontWeight: "bold",
   },
-  stepText: {
-    position: "absolute",
-    top: 754,
-    left: 0,
-    right: 0,
-    fontSize: 18,
-    color: "#1a1a1a",
-    textAlign: "center",
-  },
-  homeIndicator: {
-    position: "absolute",
-    left: 137,
-    top: 792,
-    width: 100,
-    height: 5,
-  },
+  footer: { paddingBottom: 24, alignItems: "center", },
+//   homeIndicator: {
+//     position: "absolute",
+//     left: 137,
+//     top: 792,
+//     width: 100,
+//     height: 5,
+//   },
 });

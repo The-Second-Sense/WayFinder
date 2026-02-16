@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { Audio } from "expo-av";
 import React, { useEffect, useState } from "react";
 import {
     Animated,
@@ -12,8 +13,13 @@ import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../hooks/svg-o4ibah9ira";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const DESIGN_WIDTH = 375;
+const DESIGN_HEIGHT = 812;
 
-// Mock backend function for voice registration
+const scaleX = SCREEN_WIDTH / DESIGN_WIDTH;
+const scaleY = SCREEN_HEIGHT / DESIGN_HEIGHT;
+
+// Mock backend function doar pentru test
 async function mockVoiceRegisterAPI(
   audioData: string,
 ): Promise<{ success: boolean; message?: string }> {
@@ -84,7 +90,7 @@ function GameIconsSoundWaves({ isAnimating }: { isAnimating?: boolean }) {
 function Frame() {
   return (
     <View style={styles.frameContainer}>
-      <Svg width="375" height="43" viewBox="0 0 375 43" fill="none">
+      <Svg width={SCREEN_WIDTH} height={43*scaleY} viewBox="0 0 375 43" preserveAspectRatio="none" fill="none">
         <G id="top">
           <Path d={svgPaths.p2ab9d800} stroke="white" opacity={0.35} />
           <Path d={svgPaths.p3fcc1700} fill="white" opacity={0.4} />
@@ -108,13 +114,55 @@ function Frame() {
   );
 }
 
+//Real backend function
+async function sendAudioToBackend( 
+    audioUri: string, 
+    phraseId: number 
+): Promise<{ success: boolean; message?: string }> { 
+    try { 
+        const formData = new FormData(); 
+        formData.append("phraseId", String(phraseId)); 
+        formData.append("audioFile", 
+            { uri: audioUri, 
+                name: "voice.m4a", //"voice.wav", 
+                type: "audio/m4a", 
+        } as any); 
+        const response = await fetch("http://localhost:8080/api/auth/voice-reg", { 
+            method: "POST", 
+            headers: { "Content-Type": "multipart/form-data", 
+            }, 
+            body: formData, 
+        }); 
+    
+        if (!response.ok) { 
+            const err = await response.json().catch(() => null); 
+            return { 
+                success: false, 
+                message: err?.message || "Server error", 
+            }; 
+        } 
+        const data = await response.json(); 
+        return { 
+            success: data.success ?? true, 
+            message: data.message, 
+        }; 
+    } catch (e) { 
+        return { success: false, message: "Network error" }; 
+    } 
+}
+
 export default function InregistrareVoce2() {
-  //const navigation = useNavigation<InregistrareVoce2NavigationProp>();
+
   const router=useRouter();
   const [phrase, setPhrase] = useState("");
+  const [phraseId, setPhraseId] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+
+  const recordingRef=React.useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
@@ -124,26 +172,111 @@ export default function InregistrareVoce2() {
     setError("");
   }, []);
 
+// Get a phrase from backend
+//   useEffect(() => {
+//   async function fetchPhrase() {
+//     const res = await fetch("http://localhost:8080/api/voice/phrase");
+//     const data = await res.json();
+//     setPhrase(data.text);
+//     setPhraseId(data.id);
+
+//     setIsRecording(false);
+//     setIsSuccess(false);
+//     setError("");
+//   }
+
+//   fetchPhrase();
+// }, []);
+
+    async function startRecording() {
+        try {
+        // Cere permisiuni
+            const permission = await Audio.requestPermissionsAsync();
+            if (!permission.granted) {
+            setError("Permisiunea pentru microfon este necesară");
+            return;
+        }
+
+        // Setează modul audio
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+        });
+
+        // Pornește înregistrarea
+        const { recording } = await Audio.Recording.createAsync(
+            Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+
+        recordingRef.current = recording;
+        setRecording(recording);
+        } catch (err) {
+            setError("Inregistarea nu poate fi pornită");
+        }
+    }
+
+    async function stopRecording() {
+        try {
+            const rec=recordingRef.current;
+            if(!rec) {
+                setError("Înregistrarea nu a fost inițiată corect. Încearcă din nou.");
+                setIsRecording(false);
+                return;
+            }
+            await rec.stopAndUnloadAsync();
+            const uri = rec.getURI();
+
+            recordingRef.current = null;
+            setAudioUri(uri || null);
+            setRecording(null);
+
+            return uri;
+        } catch (err) {
+            setError("Nu pot opri înregistrarea");
+        }
+    }
+
   const handleStartRecording = async () => {
+    if(!phrase) {
+        setError("Nu s-a putut obține propoziția. Încearcă din nou.");
+        return;
+    }
+
     setIsRecording(true);
     setError("");
+    setIsSuccess(false);
 
     try {
-      const mockAudioData = "mock_voice_registration_data";
-      const result = await mockVoiceRegisterAPI(mockAudioData);
+        await startRecording();
 
+        setTimeout(async () => {
+            const uri = await stopRecording();
+
+            console.log("Audio URI:", uri);
+
+            if(!uri) {
+                setError("Nu s-a putut obține fișierul audio. Încearcă din nou.");
+                setIsRecording(false);
+                return;
+            }
+
+      //const mockAudioData = "mock_voice_registration_data";
+      //const result = await mockVoiceRegisterAPI(mockAudioData);
+
+      //const result=await sendAudioToBackend("uri", phraseId);
+      const result = await mockVoiceRegisterAPI(uri);
       if (result.success) {
         setIsSuccess(true);
       } else {
         setError(result.message || "Înregistrarea a eșuat");
         setIsSuccess(false);
       }
+      setIsRecording(false);
+        }, 3000);
     } catch (err) {
       setError("Eroare de conexiune");
       setIsSuccess(false);
-    } finally {
-      setIsRecording(false);
-    }
+    } 
   };
 
   const handleFinalize = () => {
@@ -155,21 +288,22 @@ export default function InregistrareVoce2() {
     <View style={styles.container}>
       {/* Background yellow shape */}
       <View style={styles.yellowBackground}>
-        <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} viewBox="0 0 375 861" fill="none">
+        <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} viewBox="0 0 375 861" preserveAspectRatio="none" fill="none">
           <Path d={svgPaths.p2983ec10} fill="#FFED00" fillOpacity={0.68} />
         </Svg>
       </View>
 
       <Frame />
 
-      <GameIconsSoundWaves isAnimating={isRecording} />
+      {/* Content */}
+      <View style={styles.content}>
 
-      <Text style={styles.titleText}>
-        Apasă pe buton și spune propoziția de mai jos cu voce normală.
-      </Text>
+        <Text style={styles.titleText}>
+            Apasă pe buton și spune propoziția de mai jos cu voce normală.
+        </Text>
 
       <Text style={styles.phraseText}>{phrase}.</Text>
-
+        <GameIconsSoundWaves isAnimating={isRecording} />
       {/* Start Recording Button */}
       {!isSuccess && (
         <TouchableOpacity
@@ -204,14 +338,16 @@ export default function InregistrareVoce2() {
           </TouchableOpacity>
         </>
       )}
+      </View>
 
+    <View style={styles.footer}>
       <Text style={styles.privacyText}>
         Vocea ta este criptată și folosită doar pentru autentificare.
       </Text>
 
       {/* Home indicator */}
       <View style={styles.homeIndicator}>
-        <Svg width="100" height="5" viewBox="0 0 100 5" fill="none">
+        <Svg width="100" height="5" viewBox="0 0 100 5" preserveAspectRatio="none" fill="none">
           <Line
             x1="2.5"
             y1="2.5"
@@ -224,78 +360,95 @@ export default function InregistrareVoce2() {
         </Svg>
       </View>
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
     backgroundColor: "white",
-    //borderRadius: 40,
-    overflow: "hidden",
-    position: "relative",
+    // width: SCREEN_WIDTH,
+    // height: SCREEN_HEIGHT,
+    // backgroundColor: "white",
+    // overflow: "hidden",
+    // position: "relative",
   },
   yellowBackground: {
-    position: "absolute",
-    left: 0,
-    top: -49,
-    width: 375,
-    height: 861,
-    transform: [{ scaleY: -1 }],
+    position: "absolute", 
+    width: SCREEN_WIDTH, 
+    height: SCREEN_HEIGHT, 
+    top: 0, 
+    left: 0, 
+    zIndex: -1,
+    // position: "absolute",
+    // left: 0,
+    // top: -49*scaleY,
+    // width: 375*scaleX,
+    // height: 861*scaleY,
+    // transform: [{ scaleY: -1 }],
   },
   frameContainer: {
     position: "absolute",
     top: 0,
     left: 0,
-    width: 375,
-    height: 43,
+    width: 375*scaleX,
+    height: 43*scaleY,
   },
   soundWavesContainer: {
-    position: "absolute",
-    left: "50%",
-    top: 427,
-    width: 152,
-    height: 152,
-    marginLeft: -76,
-
-    //backgroundColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "transparent",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 150, height: 150, justifyContent: "center", alignItems: "center",
+    // position: "absolute",
+    // left: SCREEN_WIDTH * 0.5,
+    // top: 427*scaleY,
+    // width: 152*scaleX,
+    // height: 152*scaleY,
+    // marginLeft: -(152*scaleX)/2,
+    // backgroundColor: "transparent",
+    // justifyContent: "center",
+    // alignItems: "center",
   },
+  content: { 
+    flex: 1, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", gap: 24,
+    // flex: 1, 
+    // marginTop: 80 * scaleY, 
+    // paddingHorizontal: 20 * scaleX, 
+    // alignItems: "center", 
+    // justifyContent: "flex-start", 
+    // gap: 30 * scaleY, 
+},
   titleText: {
-    position: "absolute",
-    top: 110,
-    left: 22,
-    right: 22,
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    textAlign: "center",
-    lineHeight: 32,
+    fontSize: 22, fontWeight: "bold", textAlign: "center", color: "#1a1a1a",
+    // position: "absolute",
+    // top: 110*scaleY,
+    // left: 22*scaleX,
+    // right:  22*scaleX,
+    // fontSize: 24,
+    // fontWeight: "bold",
+    // color: "#1a1a1a",
+    // textAlign: "center",
+    // lineHeight: 32,
   },
   phraseText: {
-    position: "absolute",
-    top: 264,
-    left: 58,
-    right: 58,
+    // position: "absolute",
+    // top: 264*scaleY,
+    // left: 58*scaleX,
+    // right: 58*scaleX,
     fontSize: 20,
     color: "#1a1a1a",
     textAlign: "center",
     lineHeight: 26,
   },
   recordButton: {
-    position: "absolute",
-    top: 338,
-    left: 91,
-    width: 203,
-    height: 64,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "#1a1a1a", paddingVertical: 16, paddingHorizontal: 32, borderRadius: 12,
+    // position: "absolute",
+    // top: 338*scaleY,
+    // left: 91*scaleX,
+    // width: 203*scaleX,
+    // height: 64*scaleY,
+    // backgroundColor: "#1a1a1a",
+    // borderRadius: 10,
+    // justifyContent: "center",
+    // alignItems: "center",
   },
   recordButtonText: {
     color: "white",
@@ -304,35 +457,38 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   errorText: {
-    position: "absolute",
-    top: 629,
-    left: 80,
-    right: 80,
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#dc2626",
-    textAlign: "center",
+    color: "#dc2626", fontSize: 16, textAlign: "center",
+    // position: "absolute",
+    // top: 629*scaleY,
+    // left: 80*scaleX,
+    // right: 80*scaleX,
+    // fontSize: 16,
+    // fontWeight: "500",
+    // color: "#dc2626",
+    // textAlign: "center",
   },
   successText: {
-    position: "absolute",
-    top: 600,
-    left: 80,
-    right: 80,
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#16a34a",
-    textAlign: "center",
+    color: "#16a34a", fontSize: 18, textAlign: "center",
+    // position: "absolute",
+    // top: 600*scaleY,
+    // left: 80*scaleX,
+    // right: 80*scaleX,
+    // fontSize: 18,
+    // fontWeight: "500",
+    // color: "#16a34a",
+    // textAlign: "center",
   },
   finalizeButton: {
-    position: "absolute",
-    top: 677,
-    left: 93,
-    width: 204,
-    height: 54,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "#1a1a1a", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12,
+    // position: "absolute",
+    // top: 677*scaleY,
+    // left: 93*scaleX,
+    // width: 204*scaleX,
+    // height: 54*scaleY,
+    // backgroundColor: "#1a1a1a",
+    // borderRadius: 10,
+    // justifyContent: "center",
+    // alignItems: "center",
   },
   finalizeButtonText: {
     color: "white",
@@ -340,20 +496,29 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
+  footer: {
+    paddingBottom: 24, alignItems: "center", gap: 12,
+    // position: "absolute",
+    // bottom: 20* scaleY,
+    // width: "100%",
+    // alignItems: "center",
+  },
   privacyText: {
-    position: "absolute",
-    top: 763,
-    left: 34,
-    right: 34,
-    fontSize: 11,
-    fontWeight: "200",
-    color: "#1a1a1a",
-    textAlign: "center",
+    fontSize: 12, textAlign: "center", color: "#1a1a1a", paddingHorizontal: 40,
+    // position: "absolute",
+    // top: 763*scaleY,
+    // left: 34*scaleX,
+    // right: 34*scaleX,
+    // fontSize: 11*scaleX,
+    // fontWeight: "200",
+    // color: "#1a1a1a",
+    // textAlign: "center",
+    // marginBottom: 10*scaleY,
   },
   homeIndicator: {
-    position: "absolute",
-    left: 137,
-    top: 792,
+    // position: "absolute",
+    // left: 137*scaleX,
+    // top: 792*scaleY,
     width: 100,
     height: 5,
   },
