@@ -1,104 +1,134 @@
-import * as Contacts from "expo-contacts";
+import { ArrowRight, Bell, Search, Users } from "lucide-react-native";
+import React, { useState } from "react";
 import {
-  Alert,
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteAvatar from "../../components/FavoriteAvatar";
 
-// Definim paleta de culori conform imaginii tale
 const COLORS = {
-  yellowPrimary: "#FFED00", // Rămâne pentru butonul principal
-  yellowDark: "#F5D908", // Pentru accente
-  bgWhite: "#FFFFFF", // Fundalul paginii
-  textMain: "#1A1A1A", // Text negru intens
-  grayBorder: "#D1D1D1", // Bordură pentru input-uri
-  grayLight: "#F5F5F5", // Fundal ușor pentru secțiuni
+  yellowPrimary: "#FFED00",
+  bgLight: "#F8F9FA",
+  white: "#FFFFFF",
+  textMain: "#1A1A1A",
+  textMuted: "#6C757D",
+  border: "#E9ECEF",
 };
 
-const TranzasctionScreen = () => {
-  const favoritesList = [
-    { id: "1", name: "Andrei", imageURL: "https://i.pravatar.cc/150?u=1" },
-    { id: "2", name: "Maria", imageURL: "https://i.pravatar.cc/150?u=2" },
-    { id: "3", name: "Luca", imageURL: "https://i.pravatar.cc/150?u=3" },
-  ];
+const TransactionScreen = () => {
+  const [searchQuery, setSearchQuery] = useState("");
 
-  async function handleContacts() {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status === "granted") {
-      const { data } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.Name,
-          Contacts.Fields.PhoneNumbers,
-          Contacts.Fields.Image,
-        ],
-      });
-      if (data.length > 0) {
-        Alert.alert("Succes", `Ai ${data.length} contacte în agendă.`);
-      }
-    } else {
-      Alert.alert("Permisiune refuzată", "Avem nevoie de acces la contacte.");
-    }
-  }
+  const favoritesList = [
+    { id: "1", name: "Andrei", imageURL: "https://i.pravatar.cc/150?u=a" },
+    { id: "2", name: "Maria", imageURL: "https://i.pravatar.cc/150?u=b" },
+    { id: "3", name: "Luca", imageURL: "https://i.pravatar.cc/150?u=c" },
+    { id: "4", name: "Elena", imageURL: "https://i.pravatar.cc/150?u=d" },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Trimite bani</Text>
-      </View>
-
-      {/* SECȚIUNE FAVORITE */}
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionLabel}>Favorite</Text>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={favoritesList}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingLeft: 20 }}
-          renderItem={({ item }) => (
-            <FavoriteAvatar name={item.name} imageURL={item.imageURL} />
-          )}
-        />
-      </View>
-
-      {/* SECȚIUNE FORMULAR */}
-      <View style={styles.formContainer}>
-        <TouchableOpacity style={styles.contactButton} onPress={handleContacts}>
-          <Text style={styles.contactButtonText}>+ Alege din contacte</Text>
-        </TouchableOpacity>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Detalii Destinatar</Text>
-          <TextInput
-            placeholder="Nume destinatar"
-            placeholderTextColor="#888"
-            style={styles.input}
+      {/* 1. TOP PROFILE HEADER */}
+      <View style={styles.topHeader}>
+        <View style={styles.userInfo}>
+          <Image
+            source={{ uri: "https://i.pravatar.cc/150?u=me" }}
+            style={styles.profilePic}
           />
-          <TextInput
-            placeholder="IBAN"
-            placeholderTextColor="#888"
-            style={styles.input}
-          />
-          <TextInput
-            placeholder="Suma (RON)"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            style={styles.input}
-          />
+          <View>
+            <Text style={styles.welcomeText}>Bună, Alexandru</Text>
+            <Text style={styles.subWelcome}>Cui trimiți bani azi?</Text>
+          </View>
         </View>
-
-        {/* BUTONUL PRINCIPAL (Yellow Primary) */}
-        <TouchableOpacity style={styles.sendButton}>
-          <Text style={styles.sendButtonText}>Trimite acum</Text>
+        <TouchableOpacity style={styles.notifButton}>
+          <Bell size={24} color={COLORS.textMain} />
         </TouchableOpacity>
       </View>
+
+      <FlatList
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={{ paddingBottom: 20 }}>
+            {/* 2. PROFESSIONAL SEARCH BAR */}
+            <View style={styles.searchSection}>
+              <View style={styles.searchBar}>
+                <Search size={20} color={COLORS.textMuted} />
+                <TextInput
+                  placeholder="Caută destinatar sau tranzacție..."
+                  placeholderTextColor={COLORS.textMuted}
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
+            </View>
+
+            {/* 3. FAVORITES SECTION */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Favorite recente</Text>
+              <TouchableOpacity>
+                <Text style={styles.seeAll}>Vezi tot</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={favoritesList}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.favoritesScroll}
+              renderItem={({ item }) => (
+                <FavoriteAvatar name={item.name} imageURL={item.imageURL} />
+              )}
+            />
+
+            {/* 4. TRANSACTION FORM CARD */}
+            <View style={styles.mainCard}>
+              <Text style={styles.cardTitle}>Detalii Transfer Nou</Text>
+
+              <TouchableOpacity style={styles.contactPicker} onPress={() => {}}>
+                <Users size={20} color={COLORS.textMain} />
+                <Text style={styles.contactPickerText}>Alege din agendă</Text>
+                <ArrowRight size={18} color={COLORS.textMuted} />
+              </TouchableOpacity>
+
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>IBAN Destinatar</Text>
+                <TextInput
+                  placeholder="RO00 BTRL 0000..."
+                  style={styles.modernInput}
+                />
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>Suma</Text>
+                <View style={styles.amountInputContainer}>
+                  <TextInput
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    style={[
+                      styles.modernInput,
+                      { flex: 1, fontSize: 24, fontWeight: "700" },
+                    ]}
+                  />
+                  <Text style={styles.currency}>RON</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.mainActionBtn}>
+                <Text style={styles.mainActionText}>Confirmă Transferul</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        }
+        data={[]}
+        renderItem={null}
+      />
     </SafeAreaView>
   );
 };
@@ -106,84 +136,153 @@ const TranzasctionScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgWhite, // Fundal Alb
+    backgroundColor: COLORS.bgLight,
   },
-  header: {
-    padding: 20,
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: COLORS.yellowPrimary, // Un header galben e foarte vizibil
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: COLORS.white,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "800", // Mai gros pentru lizibilitate
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  profilePic: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 2,
+    borderColor: COLORS.yellowPrimary,
+  },
+  welcomeText: {
+    fontSize: 16,
+    fontWeight: "700",
     color: COLORS.textMain,
   },
-  sectionContainer: {
-    marginTop: 25,
+  subWelcome: {
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
-  sectionLabel: {
-    color: "#555", // Un gri mai închis pentru contrast
-    marginLeft: 20,
-    marginBottom: 10,
-    fontSize: 16,
-    fontWeight: "bold",
+  notifButton: {
+    padding: 8,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: 12,
   },
-  formContainer: {
-    flex: 1,
+  searchSection: {
     padding: 20,
   },
-  contactButton: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: COLORS.grayLight, // Fundal gri deschis, mai puțin "agresiv"
-    borderRadius: 12,
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 15,
+    height: 50,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: COLORS.grayBorder,
-    alignItems: "center",
+    borderColor: COLORS.border,
+    // Soft Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  contactButtonText: {
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 15,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
     color: COLORS.textMain,
-    fontWeight: "bold",
-    fontSize: 16,
   },
-  inputGroup: {
-    gap: 15,
-  },
-  inputLabel: {
-    color: COLORS.bgWhite,
-    fontSize: 16,
+  seeAll: {
+    color: COLORS.textMuted,
     fontWeight: "600",
-    marginBottom: 5,
   },
-  input: {
-    backgroundColor: COLORS.bgWhite,
-    color: COLORS.textMain,
-    padding: 18, // Padding mai mare pentru a fi ușor de atins (touch target)
-    borderRadius: 12,
-    fontSize: 18, // Font mai mare pentru seniori
-    borderWidth: 2, // Bordură mai groasă
-    borderColor: COLORS.grayBorder,
+  favoritesScroll: {
+    paddingLeft: 20,
+    paddingBottom: 5,
   },
-  sendButton: {
-    backgroundColor: COLORS.yellowPrimary,
+  mainCard: {
+    margin: 20,
     padding: 20,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 20,
+    color: COLORS.textMain,
+  },
+  contactPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: 16,
+    gap: 12,
+    marginBottom: 20,
+  },
+  contactPickerText: {
+    flex: 1,
+    fontWeight: "600",
+    color: COLORS.textMain,
+  },
+  inputWrapper: {
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textMuted,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  modernInput: {
+    backgroundColor: COLORS.bgLight,
+    padding: 15,
+    borderRadius: 12,
+    fontSize: 16,
+    color: COLORS.textMain,
+  },
+  amountInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.bgLight,
+    borderRadius: 12,
+    paddingRight: 15,
+  },
+  currency: {
+    fontWeight: "800",
+    color: COLORS.textMain,
+  },
+  mainActionBtn: {
+    backgroundColor: COLORS.yellowPrimary,
+    padding: 18,
     borderRadius: 16,
     alignItems: "center",
-    marginTop: 30,
-    // Umbră mai pronunțată pentru a părea "apăsabil"
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 6,
+    marginTop: 10,
   },
-  sendButtonText: {
+  mainActionText: {
+    fontWeight: "800",
+    fontSize: 16,
     color: COLORS.textMain,
-    fontSize: 20,
-    fontWeight: "900",
   },
 });
 
-export default TranzasctionScreen;
+export default TransactionScreen;

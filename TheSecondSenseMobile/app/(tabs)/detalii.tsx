@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -14,7 +14,7 @@ interface AccountDetailsScreenProps {
   navigation: any;
 }
 
-export function AccountDetailsScreen({
+export default function AccountDetailsScreen({
   route,
   navigation,
 }: AccountDetailsScreenProps) {
