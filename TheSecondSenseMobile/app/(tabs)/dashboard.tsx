@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -154,7 +153,7 @@ export default function DashboardScreen() {
     {
       icon: Building,
       label: "Detalii",
-      onClick: () => Alert.alert("IBAN", accountData.accountNumber),
+      onClick: () => router.push("/detalii"),
     },
   ];
 
@@ -186,37 +185,35 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.mainCardContainer}>
-          <AccountOverview
-            balance={accountData.balance}
-            accountName="Cont Curent"
-            accountNumber={accountData.accountNumber}
-            monthlyChange={accountData.monthlyChange}
-          />
-        </View>
+      <View style={styles.mainCardContainer}>
+        <AccountOverview
+          balance={accountData.balance}
+          accountName="Cont Curent"
+          accountNumber={accountData.accountNumber}
+          monthlyChange={accountData.monthlyChange}
+        />
+      </View>
 
-        <View style={styles.sectionContainer}>
-          <QuickActions actions={actions} />
-        </View>
+      <View style={styles.sectionContainer}>
+        <QuickActions actions={actions} />
+      </View>
 
-        <View style={styles.statsCard}>
-          <PieChart size={22} color="#EAB308" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
-            <Text style={styles.statsSubtitle}>
-              Luna aceasta ai economisit 450 RON.
-            </Text>
-          </View>
+      <View style={styles.statsCard}>
+        <PieChart size={22} color="#EAB308" />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
+          <Text style={styles.statsSubtitle}>
+            Luna aceasta ai economisit 450 RON.
+          </Text>
         </View>
+      </View>
 
-        <View style={styles.transactionSection}>
-          <Text style={styles.sectionTitle}>Activitate Recentă</Text>
-          <View style={styles.listWrapper}>
-            <TransactionList transactions={transactions.slice(0, 4)} />
-          </View>
+      <View style={styles.transactionSection}>
+        <Text style={styles.sectionTitle}>Activitate Recentă</Text>
+        <View style={styles.listWrapper}>
+          <TransactionList transactions={transactions.slice(0, 4)} />
         </View>
-      </ScrollView>
+      </View>
 
       {/* FAB */}
       <View style={styles.fabContainer}>
