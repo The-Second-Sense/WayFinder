@@ -1,3 +1,4 @@
+import { useTutorial } from "@/tutorial/TutorialContext";
 import { router } from "expo-router";
 import * as Speech from "expo-speech";
 import {
@@ -22,10 +23,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AccountOverview } from "@/components/AccountOverview";
-import { QuickActions } from "@/components/QuickActions";
 import { TransactionList } from "@/components/TransactionList";
+import { TutorialTarget } from "@/tutorial/TutorialTarget";
+import { useAuth } from "../contexts/AuthContext";
+import { apiService } from "./apiService";
 
 export default function DashboardScreen() {
+  const { token } = useAuth();
   const [accountData, setAccountData] = useState({
     balance: 0,
     name: "Utilizator",
@@ -33,7 +37,7 @@ export default function DashboardScreen() {
     monthlyChange: 0,
   });
 
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [voiceSessionId] = useState(Math.random().toString());
@@ -41,6 +45,8 @@ export default function DashboardScreen() {
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
 
   const [seniorMode, setSeniorMode] = useState(true);
+
+  const [executeMode, setExecuteMode] = useState(true); // fals pentru plan
 
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
   const [isVoiceRegistered] = useState(true);
@@ -50,19 +56,18 @@ export default function DashboardScreen() {
   );
   const [userTranscription, setUserTranscription] = useState("");
 
+  const {startTutorial, notifyActionDone} = useTutorial();
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [accountRes, transactionsRes] = await Promise.all([
-        fetch("https://api.exemplu.ro/account"),
-        fetch("https://api.exemplu.ro/transactions"),
+      const [account, transactions] = await Promise.all([
+        apiService.getAccount(),
+        apiService.getTransactions(),
       ]);
 
-      const accountJson = await accountRes.json();
-      const transactionsJson = await transactionsRes.json();
-
-      setAccountData(accountJson);
-      setTransactions(transactionsJson);
+      setAccountData(account);
+      setTransactions(transactions);
     } catch (error) {
       setAccountData({
         balance: 12450.75,
@@ -75,18 +80,12 @@ export default function DashboardScreen() {
     }
   };
 
-  const processVoiceCommand = async (text: string) => {
+  const processVoiceCommandGuide = async (text: string) => {
     try {
       setIsProcessingVoice(true);
       setUserTranscription(text);
 
-      const res = await fetch("https://api.exemplu.ro/api/voice/command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, sessionId: voiceSessionId }),
-      });
-
-      const data = await res.json();
+      const data = await apiService.processVoiceCommand(text, voiceSessionId);
 
       setBotMessage(data.message);
 
@@ -94,6 +93,41 @@ export default function DashboardScreen() {
         language: "ro-RO",
         rate: 0.9,
       });
+
+      if(data.steps && Array.isArray(data.steps)) {
+        startTutorial(data.steps);
+      }
+
+      // if (data.requiresConfirmation) {
+      //   setPendingAction(data.payload);
+      // } else {
+      //   setPendingAction(null);
+      // }
+    } catch (error) {
+      setBotMessage("Momentan serviciul nu este disponibil.");
+      Speech.speak("Momentan serviciul nu este disponibil.");
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const processVoiceCommand = async (text: string) => {
+    try {
+      setIsProcessingVoice(true);
+      setUserTranscription(text);
+
+      const data = await apiService.processVoiceCommand(text, voiceSessionId);
+
+      setBotMessage(data.message);
+
+      Speech.speak(data.message, {
+        language: "ro-RO",
+        rate: 0.9,
+      });
+
+      if(!executeMode && data.steps && Array.isArray(data.steps)) {
+        startTutorial(data.steps);
+      }
 
       if (data.requiresConfirmation) {
         setPendingAction(data.payload);
@@ -133,7 +167,7 @@ export default function DashboardScreen() {
     }
     setIsVoiceModalVisible(true);
   };
-
+  
   const actions = [
     {
       icon: Send,
@@ -174,13 +208,13 @@ export default function DashboardScreen() {
         <View>
           <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
           <Text style={styles.greeting}>Bună ziua,</Text>
-          <Text style={[styles.userName, { fontSize: seniorMode ? 24 : 18 }]}>
+          <Text style={[styles.userName, { fontSize: executeMode ? 24 : 18 }]}>
             {accountData.name}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => setSeniorMode(!seniorMode)}>
+        <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
           <Text style={{ color: "#007AFF", fontWeight: "600" }}>
-            {seniorMode ? "Mod Normal" : "Mod Senior"}
+            {executeMode ? "Mod Execuție" : "Mod Planificare"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -194,9 +228,64 @@ export default function DashboardScreen() {
         />
       </View>
 
-      <View style={styles.sectionContainer}>
+      {/* <View style={styles.sectionContainer}>
         <QuickActions actions={actions} />
+      </View> */}
+
+      <View style={styles.actionGrid}>
+        <TutorialTarget targetId="sendButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("sendButton", "press");
+              router.push("/transaction");
+            }}
+          >
+            <Send size={24} color="#000" />
+            <Text style={styles.actionLabel}>Trimite</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+
+        <TutorialTarget targetId="facturiButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("facturiButton", "press");
+              router.push("/facturi");
+            }}
+          >
+            <Receipt size={24} color="#000" />
+            <Text style={styles.actionLabel}>Facturi</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+
+        <TutorialTarget targetId="carduriButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("carduriButton", "press");
+              router.push("/cards");
+            }}
+          >
+            <CreditCard size={24} color="#000" />
+            <Text style={styles.actionLabel}>Carduri</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+
+        <TutorialTarget targetId="detaliiButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("detaliiButton", "press");
+              router.push("/detalii");
+            }}
+          >
+            <Building size={24} color="#000" />
+            <Text style={styles.actionLabel}>Detalii</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
       </View>
+
 
       <View style={styles.statsCard}>
         <PieChart size={22} color="#EAB308" />
@@ -220,11 +309,11 @@ export default function DashboardScreen() {
         <TouchableOpacity
           style={[
             styles.fabMain,
-            { width: seniorMode ? 90 : 60, height: seniorMode ? 90 : 60 },
+            { width: executeMode ? 90 : 60, height: executeMode ? 90 : 60 },
           ]}
           onPress={handleVoiceCommandAction}
         >
-          <Mic size={seniorMode ? 40 : 28} color="#000" />
+          <Mic size={executeMode ? 40 : 28} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -289,6 +378,25 @@ const styles = StyleSheet.create({
   },
   mainCardContainer: { paddingHorizontal: 16 },
   sectionContainer: { marginTop: 15 },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  actionButton: {
+    width: "70%",
+    backgroundColor: "#FFED00",
+    padding: 16,
+    paddingVertical: 18,
+    minHeight: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  actionLabel: { marginTop: 10, fontWeight: "700", fontSize: 16 },
   statsCard: {
     margin: 16,
     padding: 16,

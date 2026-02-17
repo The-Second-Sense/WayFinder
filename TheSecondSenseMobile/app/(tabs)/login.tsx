@@ -11,18 +11,9 @@ import {
 } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
+import { useAuth } from "../contexts/AuthContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// --- MOCK API ---
-async function mockLoginAPI(telefon: string, parola: string) {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  // Folosim .trim() pentru a elimina spațiile accidentale
-  if (telefon.trim() === "1234567890" && parola.trim() === "test123") {
-    return { success: true };
-  }
-  return { success: false, message: "Telefon sau parolă incorectă" };
-}
 
 // --- COMPONENTE SVG ---
 function Group() {
@@ -63,47 +54,10 @@ function Top() {
   );
 }
 
-async function loginAPI(telefon: string, parola: string) {
-  try {
-    const response = await fetch("http://localhost:8080/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        phone: telefon,
-        password: parola,
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => null);
-      return {
-        success: false,
-        message: err?.message || "Eroare la autentificare",
-      };
-    }
-
-    // Dacă răspunsul este OK
-    const data = await response.json();
-    return {
-      success: true,
-      token: data.token, // dacă backend-ul trimite token
-      user: data.user,   // dacă backend-ul trimite user
-    };
-
-  } catch (error) {
-    return {
-      success: false,
-      message: "Eroare de conexiune la server",
-    };
-  }
-}
-
-
 // --- PAGINA PRINCIPALĂ ---
 export default function LoginPage() {
   const router = useRouter();
+  const { login, isLoading: authLoading } = useAuth();
   const [telefon, setTelefon] = useState("");
   const [parola, setParola] = useState("");
   const [error, setError] = useState("");
@@ -117,18 +71,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await mockLoginAPI(telefon, parola);
-      //const result= await loginAPI(telefon, parola);
-      
-      if (result.success) {
-        // Navigăm către Dashboard din folderul (tabs)
-        // Folosim replace pentru a nu se mai putea întoarce la Login cu butonul Back
-        router.replace("/(tabs)/dashboard");
-      } else {
-        setError(result.message || "Eroare la autentificare");
-      }
-    } catch (err) {
-      setError("Eroare de conexiune");
+      await login(telefon, parola);
+      // Navigăm către Dashboard din folderul (tabs)
+      // Folosim replace pentru a nu se mai putea întoarce la Login cu butonul Back
+      router.replace("/(tabs)/dashboard");
+    } catch (err: any) {
+      setError(err?.message || "Eroare la autentificare");
     } finally {
       setLoading(false);
     }

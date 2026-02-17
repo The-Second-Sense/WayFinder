@@ -11,6 +11,9 @@ import {
 } from "react-native";
 import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../hooks/svg-o4ibah9ira";
+import { apiService } from "./(tabs)/apiService";
+import { useAuth } from "./contexts/AuthContext";
+import { BASE_URL } from "./(tabs)/api";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DESIGN_WIDTH = 375;
@@ -127,7 +130,7 @@ async function sendAudioToBackend(
                 name: "voice.m4a", //"voice.wav", 
                 type: "audio/m4a", 
         } as any); 
-        const response = await fetch("http://localhost:8080/api/auth/voice-reg", { 
+        const response = await fetch(`${BASE_URL}/auth/voice-reg`, { 
             method: "POST", 
             headers: { "Content-Type": "multipart/form-data", 
             }, 
@@ -154,6 +157,7 @@ async function sendAudioToBackend(
 export default function InregistrareVoce2() {
 
   const router=useRouter();
+  const { user } = useAuth();
   const [phrase, setPhrase] = useState("");
   const [phraseId, setPhraseId] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -165,8 +169,10 @@ export default function InregistrareVoce2() {
   const recordingRef=React.useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
-    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+    const randomIndex = Math.floor(Math.random() * phrases.length);
+    const randomPhrase = phrases[randomIndex];
     setPhrase(randomPhrase);
+    setPhraseId(randomIndex + 1); // Set phraseId based on index
     setIsRecording(false);
     setIsSuccess(false);
     setError("");
@@ -175,7 +181,7 @@ export default function InregistrareVoce2() {
 // Get a phrase from backend
 //   useEffect(() => {
 //   async function fetchPhrase() {
-//     const res = await fetch("http://localhost:8080/api/voice/phrase");
+//     const res = await fetch(`${BASE_URL}/api/auth/voice-reg/phrase`);
 //     const data = await res.json();
 //     setPhrase(data.text);
 //     setPhraseId(data.id);
@@ -264,7 +270,7 @@ export default function InregistrareVoce2() {
       //const result = await mockVoiceRegisterAPI(mockAudioData);
 
       //const result=await sendAudioToBackend("uri", phraseId);
-      const result = await mockVoiceRegisterAPI(uri);
+      const result = await apiService.registerVoice(user?.id || "", phraseId.toString(), uri);
       if (result.success) {
         setIsSuccess(true);
       } else {

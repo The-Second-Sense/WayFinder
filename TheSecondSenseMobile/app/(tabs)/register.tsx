@@ -15,6 +15,7 @@ import {
 
 import Svg, { G, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
+import { apiService } from "./apiService";
 
 const { width: Screen_width, height: Screen_height } = Dimensions.get("window");
 
@@ -75,34 +76,22 @@ export default function Registration() {
     setLoading(true);
 
     try {
-      // const response = await fetch("https://localhost/8080/register", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify({
-      //     name: fullname,
-      //     email: email,
-      //     password: parola,
-      //     phone: telefon,
-      //   }),
-      // });
+      const result = await apiService.register({
+        fullName: fullname,
+        email: email,
+        password: parola,
+        phoneNumber: telefon,
+        enableVoiceAuth: true,
+      });
 
-      // const result = await response.json();
-
-      const response = {} as any; // Mock response for testing
-      response.ok = true; // Mock ok response for testing
-      const result = {} as any; // Mock result for testing
-      result.success = true; // Mock success response for testing
-
-      if (response.ok && result.success) {
-        //router.replace("/(tabs)/dashboard");
+      if (result) {
+        // Registration successful, redirect to voice registration
         router.replace("/VoiceRegistration1");
       } else {
-        setError(result.message || "Eroare la înregistrare");
+        setError("Eroare la înregistrare");
       }
-    } catch (err) {
-      setError("Eroare de conexiune la server");
+    } catch (err: any) {
+      setError(err?.message || "Eroare de conexiune la server");
     } finally {
       setLoading(false);
     }
