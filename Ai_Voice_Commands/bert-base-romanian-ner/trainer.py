@@ -2,7 +2,7 @@ import json
 from datasets import Dataset
 from transformers import AutoTokenizer, DataCollatorForTokenClassification, AutoModelForTokenClassification
 from transformers import TrainingArguments, Trainer
-with open("dataset.json") as f:
+with open("banking_data_10k.json") as f:
     raw_data = json.load(f)
 
 my_dataset = Dataset.from_dict(raw_data)
@@ -64,10 +64,10 @@ print("Model and Collator loaded successfully!")
 training_args = TrainingArguments(
     output_dir="./ner_training_logs", # Where to save temporary backup files
     learning_rate=2e-5,               # How fast the model learns (2e-5 is standard for BERT)
-    per_device_train_batch_size=8,    # How many sentences to look at at once
-    num_train_epochs=15,              # Show the 50 sentences to the model 15 times
+    per_device_train_batch_size=16,    # How many sentences to look at once
+    num_train_epochs=3,              # Show the 50 sentences to the model 15 times
     weight_decay=0.01,                # Prevents the model from just memorizing the data
-    logging_steps=2,                  # Print an update every 2 steps
+    logging_steps=500,                  # Print an update every 2 steps
     save_strategy="no"                # Don't save intermediate steps to save hard drive space
 )
 
