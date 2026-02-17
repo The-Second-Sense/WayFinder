@@ -63,6 +63,44 @@ function Top() {
   );
 }
 
+async function loginAPI(telefon: string, parola: string) {
+  try {
+    const response = await fetch("http://localhost:8080/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        phone: telefon,
+        password: parola,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      return {
+        success: false,
+        message: err?.message || "Eroare la autentificare",
+      };
+    }
+
+    // Dacă răspunsul este OK
+    const data = await response.json();
+    return {
+      success: true,
+      token: data.token, // dacă backend-ul trimite token
+      user: data.user,   // dacă backend-ul trimite user
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      message: "Eroare de conexiune la server",
+    };
+  }
+}
+
+
 // --- PAGINA PRINCIPALĂ ---
 export default function LoginPage() {
   const router = useRouter();
@@ -80,7 +118,8 @@ export default function LoginPage() {
 
     try {
       const result = await mockLoginAPI(telefon, parola);
-
+      //const result= await loginAPI(telefon, parola);
+      
       if (result.success) {
         // Navigăm către Dashboard din folderul (tabs)
         // Folosim replace pentru a nu se mai putea întoarce la Login cu butonul Back
@@ -108,8 +147,7 @@ export default function LoginPage() {
 
       <Text style={styles.welcomeText}>Welcome Back Amalia!</Text>
 
-      {/* Câmp Telefon */}
-      <View style={styles.inputContainerTop}>
+      <View style={styles.formContainer}>
         <TextInput
           placeholder="Telefon (ex: 1234567890)"
           value={telefon}
@@ -118,10 +156,7 @@ export default function LoginPage() {
           keyboardType="phone-pad"
           placeholderTextColor="#999"
         />
-      </View>
 
-      {/* Câmp Parolă */}
-      <View style={styles.inputContainerBottom}>
         <TextInput
           placeholder="Parolă (ex: test123)"
           value={parola}
@@ -131,7 +166,7 @@ export default function LoginPage() {
           placeholderTextColor="#999"
         />
       </View>
-
+    
       {/* Mesaj de eroare sau demo */}
       <View style={styles.messageArea}>
         {error ? (
@@ -158,12 +193,12 @@ export default function LoginPage() {
 
       {/* Link-uri Navigare */}
       <View style={styles.linksContainer}>
-        <TouchableOpacity
+        {/* <TouchableOpacity
           onPress={() => router.push("../VoiceAuth")}
           style={styles.linkSpacing}
         >
           <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <TouchableOpacity onPress={() => router.push("./register")}>
           <Text style={styles.registerText}>Înregistrează-te</Text>
@@ -213,6 +248,9 @@ const styles = StyleSheet.create({
   groupTransform: {
     transform: [{ scaleY: -1 }],
   },
+  formContainer: {
+    paddingHorizontal: 30,
+  },
   welcomeText: {
     marginTop: 330,
     fontSize: 24,
@@ -241,10 +279,15 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
   },
   input: {
+    height: 55,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    borderRadius: 12,
     paddingHorizontal: 15,
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
     color: "#1a1a1a",
+    backgroundColor: "#f9f9f9",
+    marginBottom: 15,
   },
   messageArea: {
     height: 40,

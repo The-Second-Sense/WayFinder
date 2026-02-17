@@ -367,7 +367,7 @@ export default function InregistrareVoce2() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
+    //backgroundColor: "white",
     // width: SCREEN_WIDTH,
     // height: SCREEN_HEIGHT,
     // backgroundColor: "white",

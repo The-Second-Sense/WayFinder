@@ -66,7 +66,7 @@ export default function Registration() {
   const [loading, setLoading] = useState(false);
 
   const handleRegistration = async () => {
-    if (!fullname || !email || !parola) {
+    if (!fullname || !email || !parola || !telefon || fullname.trim() === "" || email.trim() === "" || parola.trim() === "" || telefon.trim() === "") {
       setError("Te rugăm să completezi câmpurile obligatorii.");
       return;
     }
@@ -75,24 +75,29 @@ export default function Registration() {
     setLoading(true);
 
     try {
-      // ATENTIE: Adaugă URL-ul API-ului tău aici
-      const response = await fetch("https://localhost/8080/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: fullname,
-          email: email,
-          password: parola,
-          phone: telefon,
-        }),
-      });
+      // const response = await fetch("https://localhost/8080/register", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify({
+      //     name: fullname,
+      //     email: email,
+      //     password: parola,
+      //     phone: telefon,
+      //   }),
+      // });
 
-      const result = await response.json();
+      // const result = await response.json();
+
+      const response = {} as any; // Mock response for testing
+      response.ok = true; // Mock ok response for testing
+      const result = {} as any; // Mock result for testing
+      result.success = true; // Mock success response for testing
 
       if (response.ok && result.success) {
-        router.replace("/(tabs)/dashboard");
+        //router.replace("/(tabs)/dashboard");
+        router.replace("/VoiceRegistration1");
       } else {
         setError(result.message || "Eroare la înregistrare");
       }
@@ -138,7 +143,7 @@ export default function Registration() {
           />
 
           <TextInput
-            placeholder="Telefon"
+            placeholder="Telefon *"
             value={telefon}
             onChangeText={setTelefon}
             style={styles.input}
@@ -179,12 +184,12 @@ export default function Registration() {
         </TouchableOpacity>
 
         <View style={styles.linksContainer}>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             onPress={() => router.push("../VoiceAuth")}
             style={styles.linkSpacing}
           >
             <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity onPress={() => router.push("/login")}>
             <Text style={styles.registerText}>Ai deja cont? Loghează-te</Text>
