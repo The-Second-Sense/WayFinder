@@ -42,7 +42,8 @@ class IntentAgent:
             word = entity['word']
             if tag not in extracted_data:
                 extracted_data[tag] = word
-            extracted_data[tag] += f" {word}"
+            else:
+                extracted_data[tag] += f" {word}"
 
         intent_label = "ALTELE" # Default intent
 
