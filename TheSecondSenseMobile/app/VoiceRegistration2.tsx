@@ -157,7 +157,7 @@ async function sendAudioToBackend(
 export default function InregistrareVoce2() {
 
   const router=useRouter();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [phrase, setPhrase] = useState("");
   const [phraseId, setPhraseId] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
@@ -167,6 +167,11 @@ export default function InregistrareVoce2() {
   const [audioUri, setAudioUri] = useState<string | null>(null);
 
   const recordingRef=React.useRef<Audio.Recording | null>(null);
+  
+  useEffect(() => {
+    console.log('VoiceRegistration2 - Current user:', user);
+    console.log('VoiceRegistration2 - Token:', token);
+  }, [user, token]);
 
   useEffect(() => {
     const randomIndex = Math.floor(Math.random() * phrases.length);

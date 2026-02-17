@@ -82,10 +82,18 @@ class ApiService {
       }
 
       const data = await response.json();
-      if (data.token) {
-        this.setToken(data.token);
+      console.log('Raw login response:', data);
+      
+      // Map accessToken to token for consistency
+      const mappedData: LoginResponse = {
+        token: data.accessToken || data.token,
+        user: data.user
+      };
+      
+      if (mappedData.token) {
+        this.setToken(mappedData.token);
       }
-      return data;
+      return mappedData;
     } catch (error) {
       throw error;
     }
@@ -99,6 +107,7 @@ class ApiService {
         body: JSON.stringify(userData),
       });
 
+      console.log('Raw registration response:', response);
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         throw new Error(error?.message || 'Registration failed');
@@ -112,30 +121,41 @@ class ApiService {
 
   async registerVoice(userId: string, phraseId: string, audioUri: string): Promise<any> {
     try {
-      const formData = new FormData();
-      formData.append('userId', userId);
-      formData.append('phraseId', phraseId);
-      formData.append('audioFile', {
-        uri: audioUri,
-        name: 'voice.m4a',
-        type: 'audio/m4a',
-      } as any);
+        console.log('Registering voice with:', { userId, phraseId, audioUri });
+        
+        if (!userId) {
+          throw new Error('User ID is required for voice registration');
+        }
+        
+        const formData = new FormData();
+        
+        // Fetch the audio blob from the URI
+        const audioResponse = await fetch(audioUri);
+        const audioBlob = await audioResponse.blob();
+        
+        // Append the audio file to FormData
+        formData.append('audioFile', audioBlob, 'voice.m4a');
+      
+        const url = `${this.baseUrl}/auth/voice-reg?userId=${encodeURIComponent(userId)}&phraseId=${encodeURIComponent(phraseId)}`;
+        
+        console.log('Sending to:', url);
 
-      const response = await fetch(`${this.baseUrl}/auth/voice-reg`, {
-        method: 'POST',
-        headers: {
-          ...(this.token && { Authorization: `Bearer ${this.token}` }),
-        },
-        body: formData,
-      });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            ...(this.token && { Authorization: `Bearer ${this.token}` }),
+          },
+          body: formData,
+        });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.message || 'Voice registration failed');
-      }
+        if (!response.ok) {
+          const error = await response.json().catch(() => null);
+          throw new Error(error?.message || 'Voice registration failed');
+        }
 
-      return await response.json();
+        return await response.json();
     } catch (error) {
+      console.error('Voice registration error:', error);
       throw error;
     }
   }

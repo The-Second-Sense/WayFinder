@@ -16,6 +16,7 @@ import {
 import Svg, { G, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
 import { apiService } from "./apiService";
+import { useAuth } from "../contexts/AuthContext";
 
 const { width: Screen_width, height: Screen_height } = Dimensions.get("window");
 
@@ -59,6 +60,7 @@ function Top() {
 
 export default function Registration() {
   const router = useRouter();
+  const { setUser } = useAuth();
   const [fullname, setFullname] = useState("");
   const [parola, setParola] = useState("");
   const [telefon, setTelefon] = useState("");
@@ -85,6 +87,14 @@ export default function Registration() {
       });
 
       if (result) {
+        // Store user data after registration
+        console.log('Registration successful, user:', result);
+        setUser({
+          id: result.userId,
+          name: result.fullName,
+          email: result.email,
+          phone: result.phoneNumber,
+        });
         // Registration successful, redirect to voice registration
         router.replace("/VoiceRegistration1");
       } else {

@@ -45,19 +45,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       const data = await apiService.login(phone, password);
+      console.log('Login response:', data);
       
       if (data.token) {
         setTokenState(data.token);
+        apiService.setToken(data.token);
         // TODO: Store token in AsyncStorage
         // await AsyncStorage.setItem('authToken', data.token);
       }
 
       if (data.user) {
+        console.log('Setting user:', data.user);
         setUserState(data.user);
         // TODO: Store user in AsyncStorage
         // await AsyncStorage.setItem('user', JSON.stringify(data.user));
       }
     } catch (error) {
+      console.error('Login error:', error);
       throw error;
     } finally {
       setIsLoading(false);
