@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -24,9 +25,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AccountOverview } from "@/components/AccountOverview";
 import { TransactionList } from "@/components/TransactionList";
-import { TutorialTarget } from "@/tutorial/TutorialTarget";
+import { QuickActions } from "@/components/QuickActions";
 import { useAuth } from "../contexts/AuthContext";
 import { apiService } from "./apiService";
+import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
 
 export default function DashboardScreen() {
   const { token } = useAuth();
@@ -43,8 +45,6 @@ export default function DashboardScreen() {
   const [voiceSessionId] = useState(Math.random().toString());
   const [pendingAction, setPendingAction] = useState<any>(null);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-
-  const [seniorMode, setSeniorMode] = useState(true);
 
   const [executeMode, setExecuteMode] = useState(true); // fals pentru plan
 
@@ -170,21 +170,25 @@ export default function DashboardScreen() {
   
   const actions = [
     {
+      targetId: "sendButton",
       icon: Send,
       label: "Trimite",
       onClick: () => router.push("/transaction"),
     },
     {
+      targetId: "facturiButton",
       icon: Receipt,
       label: "Facturi",
       onClick: () => router.push("/facturi"),
     },
     {
+      targetId: "carduriButton",
       icon: CreditCard,
       label: "Carduri",
       onClick: () => router.push("/cards"),
     },
     {
+      targetId: "detaliiButton",
       icon: Building,
       label: "Detalii",
       onClick: () => router.push("/detalii"),
@@ -203,117 +207,66 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* HEADER */}
-      <View style={styles.topHeader}>
-        <View>
-          <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
-          <Text style={styles.greeting}>Bună ziua,</Text>
-          <Text style={[styles.userName, { fontSize: executeMode ? 24 : 18 }]}>
-            {accountData.name}
-          </Text>
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HEADER */}
+        <View style={styles.topHeader}>
+          <View>
+            <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
+            <Text style={styles.greeting}>Bună ziua,</Text>
+            <Text style={[styles.userName, { fontSize: executeMode ? 24 : 18 }]}>
+              {accountData.name}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
+            <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+              {executeMode ? "Mod Execuție" : "Mod Planificare"}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
-          <Text style={{ color: "#007AFF", fontWeight: "600" }}>
-            {executeMode ? "Mod Execuție" : "Mod Planificare"}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.mainCardContainer}>
-        <AccountOverview
-          balance={accountData.balance}
-          accountName="Cont Curent"
-          accountNumber={accountData.accountNumber}
-          monthlyChange={accountData.monthlyChange}
-        />
-      </View>
-
-      {/* <View style={styles.sectionContainer}>
-        <QuickActions actions={actions} />
-      </View> */}
-
-      <View style={styles.actionGrid}>
-        <TutorialTarget targetId="sendButton">
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              notifyActionDone("sendButton", "press");
-              router.push("/transaction");
-            }}
-          >
-            <Send size={24} color="#000" />
-            <Text style={styles.actionLabel}>Trimite</Text>
-          </TouchableOpacity>
-        </TutorialTarget>
-
-        <TutorialTarget targetId="facturiButton">
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              notifyActionDone("facturiButton", "press");
-              router.push("/facturi");
-            }}
-          >
-            <Receipt size={24} color="#000" />
-            <Text style={styles.actionLabel}>Facturi</Text>
-          </TouchableOpacity>
-        </TutorialTarget>
-
-        <TutorialTarget targetId="carduriButton">
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              notifyActionDone("carduriButton", "press");
-              router.push("/cards");
-            }}
-          >
-            <CreditCard size={24} color="#000" />
-            <Text style={styles.actionLabel}>Carduri</Text>
-          </TouchableOpacity>
-        </TutorialTarget>
-
-        <TutorialTarget targetId="detaliiButton">
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              notifyActionDone("detaliiButton", "press");
-              router.push("/detalii");
-            }}
-          >
-            <Building size={24} color="#000" />
-            <Text style={styles.actionLabel}>Detalii</Text>
-          </TouchableOpacity>
-        </TutorialTarget>
-      </View>
-
-
-      <View style={styles.statsCard}>
-        <PieChart size={22} color="#EAB308" />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
-          <Text style={styles.statsSubtitle}>
-            Luna aceasta ai economisit 450 RON.
-          </Text>
+        <View style={styles.mainCardContainer}>
+          <AccountOverview
+            balance={accountData.balance}
+            accountName="Cont Curent"
+            accountNumber={accountData.accountNumber}
+            monthlyChange={accountData.monthlyChange}
+          />
         </View>
-      </View>
 
-      <View style={styles.transactionSection}>
-        <Text style={styles.sectionTitle}>Activitate Recentă</Text>
-        <View style={styles.listWrapper}>
-          <TransactionList transactions={transactions.slice(0, 4)} />
+        <View style={styles.sectionContainer}>
+          <QuickActions actions={actions} />
         </View>
-      </View>
+
+        <View style={styles.statsCard}>
+          <PieChart size={iconSizes.md} color="#EAB308" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
+            <Text style={styles.statsSubtitle}>
+              Luna aceasta ai economisit 450 RON.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.transactionSection}>
+          <Text style={styles.sectionTitle}>Activitate Recentă</Text>
+          <TransactionList transactions={transactions.slice(0, 4)} scrollable={false} />
+        </View>
+      </ScrollView>
 
       {/* FAB */}
       <View style={styles.fabContainer}>
         <TouchableOpacity
           style={[
             styles.fabMain,
-            { width: executeMode ? 90 : 60, height: executeMode ? 90 : 60 },
+            { width: executeMode ? ms(90) : ms(60), height: executeMode ? ms(90) : ms(60) },
           ]}
           onPress={handleVoiceCommandAction}
         >
-          <Mic size={executeMode ? 40 : 28} color="#000" />
+          <Mic size={executeMode ? iconSizes.xl : iconSizes.lg} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -321,7 +274,7 @@ export default function DashboardScreen() {
       <Modal visible={isVoiceModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.assistantCard}>
-            <Mic size={35} color="#000" />
+            <Mic size={iconSizes.xxl} color="#000" />
 
             {isProcessingVoice && (
               <ActivityIndicator size="large" color="#FFED00" />
@@ -367,61 +320,56 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8F9FA" },
+  scrollContainer: { flex: 1 },
+  scrollContent: { paddingBottom: ms(120) },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  scrollContent: { paddingBottom: 100 },
-  secureText: { fontSize: 12, color: "green", marginBottom: 4 },
-  greeting: { fontSize: 13, color: "#555" },
+  secureText: { fontSize: fontSizes.sm, color: "green", marginBottom: spacing.xs },
+  greeting: { fontSize: fontSizes.sm, color: "#555" },
   userName: { fontWeight: "700", color: "#000" },
   topHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
-  mainCardContainer: { paddingHorizontal: 16 },
-  sectionContainer: { marginTop: 15 },
-  actionGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginTop: 12,
-  },
+  mainCardContainer: { paddingHorizontal: spacing.lg },
+  sectionContainer: { marginTop: spacing.md },
   actionButton: {
-    width: "70%",
+    width: "49%",
     backgroundColor: "#FFED00",
-    padding: 16,
-    paddingVertical: 18,
-    minHeight: 40,
-    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: ms(100),
+    borderRadius: borderRadius.lg,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
   },
-  actionLabel: { marginTop: 10, fontWeight: "700", fontSize: 16 },
+  actionLabel: { 
+    marginTop: spacing.sm, 
+    fontWeight: "700", 
+    fontSize: fontSizes.huge,
+    textAlign: "center",
+    color: "#000",
+    lineHeight: fontSizes.base + 2,
+  },
   statsCard: {
-    margin: 16,
-    padding: 16,
+    margin: spacing.lg,
+    padding: spacing.lg,
     backgroundColor: "#1A1A1A",
-    borderRadius: 16,
+    borderRadius: borderRadius.xl,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: spacing.sm,
   },
   statsTitle: { color: "#fff", fontWeight: "600" },
-  statsSubtitle: { color: "#ccc", fontSize: 12 },
-  transactionSection: { marginTop: 25, paddingHorizontal: 16 },
-  sectionTitle: { fontSize: 17, fontWeight: "700" },
-  listWrapper: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+  statsSubtitle: { color: "#ccc", fontSize: fontSizes.sm },
+  sectionTitle: { fontSize: fontSizes.lg, fontWeight: "700" },
+  transactionSection: { marginTop: spacing.xxl, paddingHorizontal: spacing.lg, marginBottom: spacing.xxxl },
   fabContainer: {
     position: "absolute",
-    bottom: 30,
-    right: 20,
+    bottom: spacing.xxxl,
+    right: spacing.lg,
   },
   fabMain: {
-    borderRadius: 50,
+    borderRadius: ms(50),
     backgroundColor: "#FFED00",
     justifyContent: "center",
     alignItems: "center",
@@ -434,21 +382,21 @@ const styles = StyleSheet.create({
   },
   assistantCard: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 25,
+    borderTopLeftRadius: ms(28),
+    borderTopRightRadius: ms(28),
+    padding: spacing.xxl,
     alignItems: "center",
   },
   botText: {
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     fontWeight: "700",
     textAlign: "center",
-    marginVertical: 10,
+    marginVertical: spacing.sm,
   },
   transcriptionBox: {
     backgroundColor: "#F1F1F1",
-    padding: 15,
-    borderRadius: 12,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
     width: "100%",
   },
   transcriptionText: {
@@ -457,8 +405,8 @@ const styles = StyleSheet.create({
   },
   confirmBox: {
     flexDirection: "row",
-    gap: 20,
-    marginTop: 15,
+    gap: spacing.lg,
+    marginTop: spacing.md,
   },
   confirmBtn: { color: "green", fontWeight: "700" },
   cancelBtn: { color: "red", fontWeight: "700" },

@@ -1,37 +1,10 @@
 import { useRouter } from "expo-router"; // 1. Schimbăm importul
 import React, { useEffect } from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
-import Svg, { G, Line, Path } from "react-native-svg";
+import Svg, { Line, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-pib45gyikz";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-function Top() {
-  return (
-    <View style={styles.topContainer}>
-      <Svg width="375" height="43" viewBox="0 0 375 43" fill="none">
-        <G id="top">
-          <Path d={svgPaths.p2ab9d800} stroke="#1A1A1A" opacity={0.35} />
-          <Path d={svgPaths.p3fcc1700} fill="#1A1A1A" opacity={0.4} />
-          <Path d={svgPaths.p23127800} fill="#1A1A1A" />
-          <Path
-            d={svgPaths.p15888f00}
-            fill="#1A1A1A"
-            fillRule="evenodd"
-            clipRule="evenodd"
-          />
-          <Path
-            d={svgPaths.p115f9880}
-            fill="#1A1A1A"
-            fillRule="evenodd"
-            clipRule="evenodd"
-          />
-          <Path d={svgPaths.p3274b400} fill="#1A1A1A" />
-        </G>
-      </Svg>
-    </View>
-  );
-}
 
 export default function WelcomePage() {
   const router = useRouter(); // 2. Inițializăm router-ul Expo
@@ -65,8 +38,6 @@ export default function WelcomePage() {
           <Path d={svgPaths.p149179b2} fill="#FFED00" fillOpacity={0.34} />
         </Svg>
       </View>
-
-      <Top />
 
       {/* Logo-ul aplicației */}
       <View style={styles.logoContainer}>
@@ -105,13 +76,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     overflow: "hidden",
     position: "relative",
-  },
-  topContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 375,
-    height: 43,
   },
   yellowShape1: {
     position: "absolute",

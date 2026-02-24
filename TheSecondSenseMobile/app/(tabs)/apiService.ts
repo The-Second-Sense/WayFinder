@@ -69,6 +69,11 @@ class ApiService {
 
   // Authentication endpoints
   async login(phone: string, password: string): Promise<LoginResponse> {
+    // MOCK LOGIN - bypasses real API
+    return this.mockLogin(phone, password);
+    
+    // Uncomment below to use real API
+    /*
     try {
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
@@ -97,6 +102,35 @@ class ApiService {
     } catch (error) {
       throw error;
     }
+    */
+  }
+
+  // Mock login function for development/testing
+  private async mockLogin(phone: string, password: string): Promise<LoginResponse> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Accept any credentials, or specific demo credentials
+    if (!phone || !password) {
+      throw new Error('Phone and password are required');
+    }
+
+    // Create mock response
+    const mockResponse: LoginResponse = {
+      token: 'mock-jwt-token-' + Date.now(),
+      user: {
+        id: 'mock-user-123',
+        name: 'Amalia',
+        email: 'amalia@wayfinder.com',
+        phone: phone,
+      }
+    };
+
+    // Set the token
+    this.setToken(mockResponse.token);
+    
+    console.log('Mock login successful:', mockResponse);
+    return mockResponse;
   }
 
   async register(userData: any): Promise<any> {
@@ -119,7 +153,7 @@ class ApiService {
     }
   }
 
-  async registerVoice(userId: string, phraseId: string, audioUri: string): Promise<any> {
+  async registerVoice(userId: string, phraseId: string, audioUri: string): Promise<{ success: boolean; message?: string; data?: any }> {
     try {
         console.log('Registering voice with:', { userId, phraseId, audioUri });
         
@@ -148,15 +182,29 @@ class ApiService {
           body: formData,
         });
 
+        console.log('Raw voice registration response:', response);
+        const responseData = await response.json().catch(() => null);
+        console.log('Response data:', responseData);
+
         if (!response.ok) {
-          const error = await response.json().catch(() => null);
-          throw new Error(error?.message || 'Voice registration failed');
+          return {
+            success: false,
+            message: responseData?.message || 'Voice registration failed'
+          };
         }
 
-        return await response.json();
+        // Ensure response has success property
+        return {
+          success: responseData?.success !== false,
+          message: responseData?.message,
+          data: responseData?.data || responseData
+        };
     } catch (error) {
       console.error('Voice registration error:', error);
-      throw error;
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Voice registration failed'
+      };
     }
   }
 
@@ -174,6 +222,11 @@ class ApiService {
 
   // User/Account endpoints
   async getAccount(): Promise<any> {
+    // MOCK ACCOUNT - bypasses real API
+    return this.mockGetAccount();
+
+    // Uncomment below to use real API
+    /*
     try {
       const response = await fetch(`${this.baseUrl}/account`, {
         method: 'GET',
@@ -188,9 +241,28 @@ class ApiService {
     } catch (error) {
       throw error;
     }
+    */
+  }
+
+  // Mock account function for development/testing
+  private async mockGetAccount(): Promise<any> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    return {
+      balance: 12450.75,
+      name: "Alex Ionescu",
+      accountNumber: "RO49 INGB 0001 2233 4455",
+      monthlyChange: +12.4,
+    };
   }
 
   async getTransactions(limit?: number): Promise<any[]> {
+    // MOCK TRANSACTIONS - bypasses real API
+    return this.mockGetTransactions(limit);
+
+    // Uncomment below to use real API
+    /*
     try {
       let url = `${this.baseUrl}/transactions`;
       if (limit) {
@@ -210,6 +282,66 @@ class ApiService {
     } catch (error) {
       throw error;
     }
+    */
+  }
+
+  // Mock transactions function for development/testing
+  private async mockGetTransactions(limit?: number): Promise<any[]> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    const mockTransactions = [
+      {
+        id: 'TXN-001',
+        type: 'debit',
+        amount: 150.00,
+        description: 'Payment to John Doe',
+        category: 'transfer',
+        date: '24 Feb 2026',
+        time: '14:30',
+      },
+      {
+        id: 'TXN-002',
+        type: 'credit',
+        amount: 500.00,
+        description: 'Monthly allowance',
+        category: 'transfer',
+        date: '22 Feb 2026',
+        time: '09:15',
+      },
+      {
+        id: 'TXN-003',
+        type: 'debit',
+        amount: 89.99,
+        description: 'Online shopping',
+        category: 'shopping',
+        date: '21 Feb 2026',
+        time: '16:45',
+      },
+      {
+        id: 'TXN-004',
+        type: 'debit',
+        amount: 200.00,
+        description: 'Electricity bill',
+        category: 'utilities',
+        date: '20 Feb 2026',
+        time: '11:20',
+      },
+      {
+        id: 'TXN-005',
+        type: 'credit',
+        amount: 1000.00,
+        description: 'Salary deposit',
+        category: 'transfer',
+        date: '15 Feb 2026',
+        time: '08:00',
+      }
+    ];
+
+    // Apply limit if provided
+    const result = limit ? mockTransactions.slice(0, limit) : mockTransactions;
+    console.log('Mock transactions returned:', result);
+    return result;
   }
 
   // Voice command endpoints

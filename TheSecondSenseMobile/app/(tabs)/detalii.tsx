@@ -8,6 +8,9 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { spacing, fontSizes, borderRadius, ms } from "@/constants/responsive";
+import { ArrowLeft } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 interface AccountDetailsScreenProps {
   route: any;
@@ -18,6 +21,7 @@ export default function AccountDetailsScreen({
   route,
   navigation,
 }: AccountDetailsScreenProps) {
+  const router = useRouter();
   const [showFullIBAN, setShowFullIBAN] = useState(false);
   const [isCardLocked, setIsCardLocked] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -145,6 +149,15 @@ export default function AccountDetailsScreen({
 
   return (
     <View style={styles.container}>
+      {/* Back Button Header */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color="#1A1A1A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Detalii Cont</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -489,112 +502,134 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  backButton: {
+    padding: spacing.sm,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: "700",
+    color: "#1A1A1A",
+  },
   scrollView: {
     flex: 1,
   },
   headerCard: {
     backgroundColor: "#FFED00",
-    padding: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    padding: spacing.xxl,
+    borderBottomLeftRadius: borderRadius.xxl,
+    borderBottomRightRadius: borderRadius.xxl,
   },
   accountTypeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   accountTypeIcon: {
-    fontSize: 40,
-    marginRight: 12,
+    fontSize: fontSizes.huge,
+    marginRight: spacing.md,
   },
   accountTypeInfo: {
     flex: 1,
   },
   accountType: {
-    fontSize: 22,
+    fontSize: fontSizes.xl,
     fontWeight: "bold",
     color: "#1A1A1A",
-    marginBottom: 6,
+    marginBottom: spacing.xs,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: ms(8),
+    height: ms(8),
+    borderRadius: ms(4),
     backgroundColor: "#00FF00",
-    marginRight: 6,
+    marginRight: spacing.xs,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "500",
     color: "#1A1A1A",
   },
   ibanContainer: {
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
     borderWidth: 2,
     borderColor: "#1A1A1A",
   },
   ibanLabel: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: "#1A1A1A",
     opacity: 0.6,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   ibanNumber: {
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     fontWeight: "600",
     color: "#1A1A1A",
     fontFamily: "Courier",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   ibanActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: spacing.sm,
   },
   ibanButton: {
     flex: 1,
     backgroundColor: "#F5D908",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
     borderWidth: 2,
     borderColor: "#1A1A1A",
     alignItems: "center",
   },
   ibanButtonText: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "600",
     color: "#1A1A1A",
   },
   section: {
-    padding: 16,
+    padding: spacing.lg,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: fontSizes.xl,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   addButton: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "600",
     color: "#1A1A1A",
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     borderWidth: 2,
     borderColor: "#1A1A1A",
     shadowColor: "#000",

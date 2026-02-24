@@ -15,7 +15,6 @@ import {
 import Svg, { G, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
 import { apiService } from "./apiService";
-import { useAuth } from "../contexts/AuthContext";
 import { spacing, fontSizes, borderRadius, ms, wp, hp } from "@/constants/responsive";
 
 function Group() {
@@ -29,19 +28,24 @@ function Group() {
   );
 }
 
-export default function Registration() {
+export default function AddBeneficiary() {
   const router = useRouter();
-  const { setUser } = useAuth();
-  const [fullname, setFullname] = useState("");
-  const [parola, setParola] = useState("");
-  const [telefon, setTelefon] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleRegistration = async () => {
-    if (!fullname || !email || !parola || !telefon || fullname.trim() === "" || email.trim() === "" || parola.trim() === "" || telefon.trim() === "") {
-      setError("Te rugăm să completezi câmpurile obligatorii.");
+  const handleAddBeneficiary = async () => {
+    if (!name || !phoneNumber || name.trim() === "" || phoneNumber.trim() === "") {
+      setError("Te rugăm să completezi toate câmpurile obligatorii.");
+      return;
+    }
+
+    // Basic phone number validation (at least 10 digits)
+    const phoneRegex = /^\d{10,}$/;
+    if (!phoneRegex.test(phoneNumber.replace(/\D/g, ""))) {
+      setError("Te rugăm introduceți un număr de telefon valid.");
       return;
     }
 
@@ -49,27 +53,21 @@ export default function Registration() {
     setLoading(true);
 
     try {
-      const result = await apiService.register({
-        fullName: fullname,
-        email: email,
-        password: parola,
-        phoneNumber: telefon,
-        enableVoiceAuth: true,
+      const result = await apiService.addBeneficiary({
+        fullName: name,
+        phoneNumber: phoneNumber,
       });
 
       if (result) {
-        // Store user data after registration
-        console.log('Registration successful, user:', result);
-        setUser({
-          id: result.userId,
-          name: result.fullName,
-          email: result.email,
-          phone: result.phoneNumber,
-        });
-        // Registration successful, redirect to voice registration
-        router.replace("/VoiceRegistration1");
+        setSuccess(true);
+        setName("");
+        setPhoneNumber("");
+        // Navigate back after 1.5 seconds
+        setTimeout(() => {
+          router.back();
+        }, 1500);
       } else {
-        setError("Eroare la înregistrare");
+        setError("Eroare la adăugarea beneficiarului");
       }
     } catch (err: any) {
       setError(err?.message || "Eroare de conexiune la server");
@@ -89,48 +87,33 @@ export default function Registration() {
             <Group />
           </View>
         </View>
-        <Text style={styles.welcomeText}>Înregistrare</Text>
+        <Text style={styles.welcomeText}>Adăugă Beneficiar</Text>
 
         <View style={styles.formContainer}>
           <TextInput
             placeholder="Nume Complet *"
-            value={fullname}
-            onChangeText={setFullname}
+            value={name}
+            onChangeText={setName}
             style={styles.input}
             placeholderTextColor="#999"
+            editable={!loading}
           />
 
           <TextInput
-            placeholder="Email *"
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor="#999"
-          />
-
-          <TextInput
-            placeholder="Telefon *"
-            value={telefon}
-            onChangeText={setTelefon}
+            placeholder="Număr Telefon *"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
             style={styles.input}
             keyboardType="phone-pad"
             placeholderTextColor="#999"
-          />
-
-          <TextInput
-            placeholder="Parolă *"
-            value={parola}
-            onChangeText={setParola}
-            style={styles.input}
-            secureTextEntry={true}
-            placeholderTextColor="#999"
+            editable={!loading}
           />
         </View>
 
         <View style={styles.messageArea}>
-          {error ? (
+          {success ? (
+            <Text style={styles.successText}>Beneficiar adăugat cu succes!</Text>
+          ) : error ? (
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <Text style={styles.demoText}>
@@ -140,27 +123,22 @@ export default function Registration() {
         </View>
 
         <TouchableOpacity
-          style={styles.loginButton}
-          onPress={handleRegistration}
-          disabled={loading}
+          style={[styles.addButton, loading && styles.buttonDisabled]}
+          onPress={handleAddBeneficiary}
+          disabled={loading || success}
         >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.loginButtonText}>Înregistrare</Text>
+            <Text style={styles.addButtonText}>
+              {success ? "Beneficiar Adăugat" : "Adaugă Beneficiar"}
+            </Text>
           )}
         </TouchableOpacity>
 
         <View style={styles.linksContainer}>
-          {/* <TouchableOpacity
-            onPress={() => router.push("../VoiceAuth")}
-            style={styles.linkSpacing}
-          >
-            <Text style={styles.voiceAuthText}>Autentificare prin voce</Text>
-          </TouchableOpacity> */}
-
-          <TouchableOpacity onPress={() => router.push("/login")}>
-            <Text style={styles.registerText}>Ai deja cont? Loghează-te</Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.backText}>Înapoi</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -214,6 +192,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  successText: {
+    color: "#16a34a",
+    fontSize: fontSizes.sm,
+    fontWeight: "600",
+  },
   errorText: {
     color: "#dc2626",
     fontSize: fontSizes.sm,
@@ -223,7 +206,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     fontSize: fontSizes.sm,
   },
-  loginButton: {
+  addButton: {
     alignSelf: "center",
     marginTop: spacing.lg,
     width: "80%",
@@ -234,7 +217,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 3,
   },
-  loginButtonText: {
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  addButtonText: {
     color: "white",
     fontSize: fontSizes.lg,
     fontWeight: "bold",
@@ -244,19 +230,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: ms(50),
   },
-  linkSpacing: {
-    marginBottom: spacing.lg,
-  },
-  voiceAuthText: {
-    fontSize: fontSizes.md,
-    fontWeight: "bold",
-    color: "#1a1a1a",
-    textDecorationLine: "underline",
-  },
-  registerText: {
+  backText: {
     fontSize: fontSizes.md,
     fontWeight: "600",
     color: "#4b5563",
+    textDecorationLine: "underline",
   },
   homeIndicator: {
     position: "absolute",

@@ -1,8 +1,12 @@
 import { CreditCard, Receipt, Send, TrendingUp } from "lucide-react-native";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { TutorialTarget } from "@/tutorial/TutorialTarget";
+import { useTutorial } from "@/tutorial/TutorialContext";
+import { spacing, fontSizes, iconSizes, ms, borderRadius } from "@/constants/responsive";
 
 interface QuickAction {
+  targetId: string;
   icon: any;
   label: string;
   onClick: () => void;
@@ -13,33 +17,38 @@ interface QuickActionsProps {
 }
 
 export function QuickActions({ actions }: QuickActionsProps) {
-  // Culori alternate pentru design
+  const { notifyActionDone } = useTutorial();
   const colors = ["#FFED00", "#F5D908"];
-
   return (
     <View style={styles.container}>
       <View style={styles.grid}>
-        {actions.map((action, index) => {
-          const Icon = action.icon;
-          // Alegem culoarea bazat pe index (par/impar)
-          const bgColor = colors[index % 2];
 
-          return (
+      {actions.map((action, index) => {
+        const Icon = action.icon;
+        const bgColor = colors[index % 2];
+
+        return (
+          <TutorialTarget key={action.targetId} targetId={action.targetId}>
             <Pressable
               key={index}
-              onPress={action.onClick}
               style={({ pressed }) => [
                 styles.actionButton,
                 pressed && styles.buttonPressed,
               ]}
+              onPress={() => {
+                notifyActionDone(action.targetId, "press");
+                action.onClick();
+              }}
             >
               <View style={[styles.iconWrapper, { backgroundColor: bgColor }]}>
                 <Icon size={24} color="#1A1A1A" />
               </View>
               <Text style={styles.label}>{action.label}</Text>
+
             </Pressable>
-          );
-        })}
+          </TutorialTarget>
+        );
+      })}
       </View>
     </View>
   );
@@ -48,31 +57,47 @@ export function QuickActions({ actions }: QuickActionsProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "white",
-    borderRadius: 16,
+    //borderRadius: 16,
     padding: 16,
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
+    //borderWidth: 2,
+    //borderColor: "#1A1A1A",
     marginVertical: 10,
     // Umbră pentru card
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    //shadowColor: "#000",
+    //shadowOffset: { width: 0, height: 2 },
+    //shadowOpacity: 0.1,
+    //shadowRadius: 4,
+    //elevation: 3,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
   actionButton: {
-    width: "48%", // Aproape jumătate pentru a crea 2 coloane cu spațiu între ele
+    width: "100%",
     alignItems: "center",
     paddingVertical: 16,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "transparent",
+  },
+  actionLabel: {
+    marginTop: spacing.xs,
+    fontWeight: "700",
+    fontSize: fontSizes.lg,
+    textAlign: "center",
+    color: "#000",
+    lineHeight: fontSizes.base,
   },
   buttonPressed: {
     backgroundColor: "rgba(255, 237, 0, 0.1)",

@@ -78,25 +78,6 @@ function Frame1() {
   );
 }
 
-function Top() {
-  return (
-    <View style={styles.topContainer}>
-      <Svg width="375" height="40" viewBox="0 0 375 40" fill="none">
-        <G id="top">
-          <Path d={svgPaths.p10031b00} fill="white" />
-          <Path d={svgPaths.p610c280} fill="white" />
-          <Path
-            d={svgPaths.pe01ca00}
-            fill="white"
-            fillRule="evenodd"
-            clipRule="evenodd"
-          />
-        </G>
-      </Svg>
-    </View>
-  );
-}
-
 export default function VoiceAuth() {
   const navigation = useNavigation<VoiceAuthNavigationProp>();
   const [phrase, setPhrase] = useState("");
@@ -139,8 +120,6 @@ export default function VoiceAuth() {
   return (
     <View style={styles.container}>
       <View style={styles.topBackground} />
-
-      <Top />
 
       <Text style={styles.titleText}>Autentificare vocală</Text>
       <Text style={styles.subtitleText}>Spune următoarea propoziție</Text>
@@ -199,13 +178,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 40,
     backgroundColor: "rgba(245, 217, 8, 0.68)",
-  },
-  topContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 375,
-    height: 40,
   },
   titleText: {
     position: "absolute",

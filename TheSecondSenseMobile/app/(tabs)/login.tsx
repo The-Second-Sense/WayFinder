@@ -2,7 +2,6 @@ import { useRouter } from "expo-router"; // Importul corect pentru Expo Router
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   StyleSheet,
   Text,
   TextInput,
@@ -12,8 +11,7 @@ import {
 import Svg, { G, Line, Path } from "react-native-svg";
 import svgPaths from "../../hooks/svg-q8nt6t0xms";
 import { useAuth } from "../contexts/AuthContext";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { spacing, fontSizes, borderRadius, ms, wp, hp } from "@/constants/responsive";
 
 // --- COMPONENTE SVG ---
 function Group() {
@@ -24,33 +22,6 @@ function Group() {
         <Path d={svgPaths.p2612dd00} fill="#FFFB00" fillOpacity={0.34} />
       </G>
     </Svg>
-  );
-}
-
-function Top() {
-  return (
-    <View style={styles.topContainer}>
-      <Svg width="375" height="43" viewBox="0 0 375 43" fill="none">
-        <G id="top">
-          <Path d={svgPaths.p2ab9d800} stroke="white" opacity={0.35} />
-          <Path d={svgPaths.p3fcc1700} fill="white" opacity={0.4} />
-          <Path d={svgPaths.p23127800} fill="white" />
-          <Path
-            d={svgPaths.p15888f00}
-            fill="white"
-            fillRule="evenodd"
-            clipRule="evenodd"
-          />
-          <Path
-            d={svgPaths.p115f9880}
-            fill="white"
-            fillRule="evenodd"
-            clipRule="evenodd"
-          />
-          <Path d={svgPaths.p3274b400} fill="white" />
-        </G>
-      </Svg>
-    </View>
   );
 }
 
@@ -90,8 +61,6 @@ export default function LoginPage() {
           <Group />
         </View>
       </View>
-
-      <Top />
 
       <Text style={styles.welcomeText}>Welcome Back Amalia!</Text>
 
@@ -176,113 +145,106 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
-    borderRadius: 40,
+    borderRadius: ms(40),
     overflow: "hidden",
-  },
-  topContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: 43,
   },
   backgroundGroup: {
     position: "absolute",
-    left: -70,
-    top: -59,
-    width: 515,
-    height: 366,
+    left: ms(-70),
+    top: ms(-59),
+    width: wp(137),
+    height: hp(45),
   },
   groupTransform: {
     transform: [{ scaleY: -1 }],
   },
   formContainer: {
-    paddingHorizontal: 30,
+    paddingHorizontal: spacing.xxxl,
   },
   welcomeText: {
-    marginTop: 330,
-    fontSize: 24,
+    marginTop: hp(40),
+    fontSize: fontSizes.xxl,
     fontWeight: "bold",
     color: "#1a1a1a",
     textAlign: "center",
   },
   inputContainerTop: {
-    marginTop: 50,
-    marginHorizontal: 30,
-    height: 50,
+    marginTop: ms(50),
+    marginHorizontal: spacing.xxxl,
+    height: ms(50),
     borderWidth: 1,
     borderColor: "#1a1a1a",
-    borderRadius: 10,
+    borderRadius: borderRadius.md,
     justifyContent: "center",
     backgroundColor: "white",
   },
   inputContainerBottom: {
-    marginTop: 15,
-    marginHorizontal: 30,
-    height: 50,
+    marginTop: spacing.md,
+    marginHorizontal: spacing.xxxl,
+    height: ms(50),
     borderWidth: 1,
     borderColor: "#1a1a1a",
-    borderRadius: 10,
+    borderRadius: borderRadius.md,
     justifyContent: "center",
     backgroundColor: "white",
   },
   input: {
-    height: 55,
+    height: ms(55),
     borderWidth: 1,
     borderColor: "#e5e5e5",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    fontSize: 16,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSizes.base,
     color: "#1a1a1a",
     backgroundColor: "#f9f9f9",
-    marginBottom: 15,
+    marginBottom: spacing.md,
   },
   messageArea: {
-    height: 40,
+    height: ms(40),
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 5,
+    marginTop: spacing.xs,
   },
   errorText: {
     color: "#dc2626",
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     fontWeight: "600",
   },
   demoText: {
     color: "#6b7280",
-    fontSize: 10,
+    fontSize: fontSizes.xs,
     textAlign: "center",
   },
   loginButton: {
     alignSelf: "center",
-    marginTop: 10,
-    width: 180,
-    height: 50,
+    marginTop: spacing.sm,
+    width: ms(180),
+    height: ms(50),
     backgroundColor: "#1a1a1a",
-    borderRadius: 10,
+    borderRadius: borderRadius.md,
     justifyContent: "center",
     alignItems: "center",
   },
   loginButtonText: {
     color: "white",
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     fontWeight: "bold",
   },
   linksContainer: {
-    marginTop: 30,
+    marginTop: spacing.xxxl,
     alignItems: "center",
   },
   linkSpacing: {
-    marginBottom: 60,
+    marginBottom: ms(60),
   },
   voiceAuthText: {
-    fontSize: 13,
+    fontSize: fontSizes.sm,
     fontWeight: "bold",
     color: "black",
     textDecorationLine: "underline",
   },
   registerText: {
-    fontSize: 13,
+    fontSize: fontSizes.sm,
     fontWeight: "600",
     fontStyle: "italic",
     color: "black",
@@ -290,7 +252,7 @@ const styles = StyleSheet.create({
   },
   homeIndicator: {
     position: "absolute",
-    bottom: 20,
+    bottom: spacing.lg,
     alignSelf: "center",
   },
 });

@@ -10,6 +10,9 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { spacing, fontSizes, borderRadius, ms } from "@/constants/responsive";
+import { ArrowLeft } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 interface Bill {
   id: string;
@@ -27,6 +30,7 @@ interface BillPaymentScreenProps {
 export default function BillPaymentScreen({
   onPayment,
 }: BillPaymentScreenProps) {
+  const router = useRouter();
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [amount, setAmount] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -142,6 +146,15 @@ export default function BillPaymentScreen({
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
+      {/* Back Button Header */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color="#1A1A1A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Plăți Facturi</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -286,36 +299,52 @@ export default function BillPaymentScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#F8F9FA",
+  },
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  backButton: {
+    padding: spacing.sm,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: "700",
+    color: "#1A1A1A",
   },
   scrollView: {
     flex: 1,
   },
   header: {
     backgroundColor: "#FFED00",
-    padding: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1A1A1A",
-    marginBottom: 4,
+    padding: spacing.lg,
+    borderBottomLeftRadius: borderRadius.xl,
+    borderBottomRightRadius: borderRadius.xl,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     color: "#1A1A1A",
     opacity: 0.7,
   },
   section: {
-    padding: 16,
+    padding: spacing.lg,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: fontSizes.xl,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   billsGrid: {
     flexDirection: "row",
@@ -325,9 +354,9 @@ const styles = StyleSheet.create({
   billCard: {
     width: "48%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 2,
     borderColor: "#1A1A1A",
     shadowColor: "#000",
@@ -345,79 +374,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   billIcon: {
-    fontSize: 24,
+    fontSize: fontSizes.xxl,
   },
   billAmount: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "700",
     color: "#1A1A1A",
   },
   billName: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   billDueDate: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: "#1A1A1A",
     opacity: 0.6,
   },
   form: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     borderWidth: 2,
     borderColor: "#1A1A1A",
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "500",
     color: "#1A1A1A",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   input: {
     borderWidth: 2,
     borderColor: "#1A1A1A",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    fontSize: fontSizes.base,
     color: "#1A1A1A",
     backgroundColor: "#FFFFFF",
   },
   selectedBillInfo: {
     backgroundColor: "#FFED00",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
   },
   selectedBillLabel: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: "#1A1A1A",
     opacity: 0.7,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   selectedBillName: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "600",
     color: "#1A1A1A",
     marginBottom: 2,
   },
   selectedBillDate: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: "#1A1A1A",
     opacity: 0.7,
   },
   payButton: {
     backgroundColor: "#FFED00",
-    padding: 16,
-    borderRadius: 8,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#1A1A1A",
@@ -432,42 +461,42 @@ const styles = StyleSheet.create({
     opacity: 0.2,
   },
   payButtonText: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "600",
     color: "#1A1A1A",
   },
   clearButton: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 8,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#1A1A1A",
     backgroundColor: "#FFFFFF",
   },
   clearButtonText: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     fontWeight: "500",
     color: "#1A1A1A",
   },
   tipsSection: {
     backgroundColor: "#F5D908",
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
+    margin: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
     borderWidth: 2,
     borderColor: "#1A1A1A",
   },
   tipsTitle: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   tipText: {
-    fontSize: 14,
+    fontSize: fontSizes.md,
     color: "#1A1A1A",
-    marginBottom: 8,
-    lineHeight: 20,
+    marginBottom: spacing.sm,
+    lineHeight: ms(20),
   },
 });

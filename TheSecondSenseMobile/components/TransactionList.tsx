@@ -25,6 +25,7 @@ interface TransactionListProps {
   ListHeaderComponent?: React.ReactElement;
   onRefresh?: () => void;
   refreshing?: boolean;
+  scrollable?: boolean; // false when nested in a ScrollView
 }
 
 const categoryIcons: Record<string, any> = {
@@ -41,6 +42,7 @@ export function TransactionList({
   ListHeaderComponent,
   onRefresh, // 2. EXTRAGE-LE AICI
   refreshing, // 2. EXTRAGE-LE AICI
+  scrollable = true, // Default to scrollable for backward compatibility
 }: TransactionListProps) {
   const renderItem = ({ item: transaction }: { item: Transaction }) => {
     const IconComponent =
@@ -87,6 +89,32 @@ export function TransactionList({
     );
   };
 
+  // When not scrollable (nested in ScrollView), render as simple View
+  if (!scrollable) {
+    return (
+      <View style={styles.card}>
+        {ListHeaderComponent && (
+          <>
+            {ListHeaderComponent}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Tranzacții Recente</Text>
+            </View>
+          </>
+        )}
+        {transactions.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Nu există tranzacții recente.</Text>
+          </View>
+        ) : (
+          transactions.map((transaction) =>
+            renderItem({ item: transaction })
+          )
+        )}
+      </View>
+    );
+  }
+
+  // When scrollable, use FlatList
   return (
     <View style={styles.card}>
       <FlatList
@@ -124,7 +152,6 @@ export function TransactionList({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1, // Permite listei să ocupe tot ecranul
     backgroundColor: "white",
   },
   header: {

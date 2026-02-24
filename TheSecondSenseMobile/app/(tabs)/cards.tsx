@@ -1,5 +1,8 @@
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { spacing, fontSizes, borderRadius, ms, wp } from "@/constants/responsive";
+import { ArrowLeft } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 interface BankCard {
   id: string;
@@ -9,6 +12,7 @@ interface BankCard {
   color: string;
 }
 const CardsScreen = () => {
+  const router = useRouter();
   const data = [
     {
       id: "1",
@@ -45,7 +49,7 @@ const CardsScreen = () => {
 
         <View style={styles.cardFooter}>
           <View>
-            <Text style={{ color: isYellow ? "#555" : "#CCC", fontSize: 10 }}>
+            <Text style={{ color: isYellow ? "#555" : "#CCC", fontSize: fontSizes.xs }}>
               CARD HOLDER
             </Text>
             <Text style={[styles.cardHolder, { color: textColor }]}>
@@ -60,27 +64,21 @@ const CardsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ padding: 20 }}>
-        <Text style={{ fontSize: 24, fontWeight: "bold", color: "#1A1A1A" }}>
-          Cardurile mele
-        </Text>
+      <View style={styles.topHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color="#1A1A1A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Cardurile mele</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <View style={{ height: 250 }}>
-        {" "}
-        {/* Container fix pentru listă */}
-        <FlatList
-          data={data}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          snapToInterval={320} // Lățimea cardului + margin
-        />
-      </View>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
+      />
     </SafeAreaView>
   );
 };
@@ -88,32 +86,52 @@ const CardsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF", // Fundal alb conform cerinței pentru seniori
+    backgroundColor: "#FFFFFF",
+  },
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  backButton: {
+    padding: spacing.sm,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: "700",
+    color: "#1A1A1A",
   },
   title: {
-    fontSize: 28,
+    fontSize: fontSizes.xxxl,
     fontWeight: "800",
-    color: "#1A1A1A", // Negru intens pentru contrast
-    marginBottom: 5,
+    color: "#1A1A1A",
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     color: "#666",
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   listContainer: {
-    paddingVertical: 10,
-    paddingLeft: 20,
-    paddingRight: 20, // Spațiu la finalul listei
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   card: {
-    width: 300,
-    height: 190,
-    borderRadius: 20, // Colțuri mai rotunjite, mai moderne
-    padding: 24,
-    marginRight: 20,
+    width: "100%",
+    height: ms(190),
+    borderRadius: borderRadius.xl,
+    padding: spacing.xxl,
+    marginBottom: spacing.lg,
     justifyContent: "space-between",
-    // Umbră mai vizibilă pe alb
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
@@ -125,13 +143,13 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   cardType: {
-    fontSize: 20,
+    fontSize: fontSizes.xl,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: 1,
   },
   cardNumber: {
-    fontSize: 22,
+    fontSize: fontSizes.xl,
     fontWeight: "700",
     letterSpacing: 3,
     textAlign: "center",
@@ -142,7 +160,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   cardHolder: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "bold",
     textTransform: "uppercase",
   },

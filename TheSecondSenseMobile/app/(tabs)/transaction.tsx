@@ -1,5 +1,5 @@
-import { ArrowRight, Bell, Search, Users } from "lucide-react-native";
-import React, { useState } from "react";
+import { ArrowRight, Bell, Search, Users, X, Plus, ArrowLeft } from "lucide-react-native";
+import React, { useState, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -7,10 +7,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Modal,
+  Alert,
+  ActivityIndicator,
+  Pressable
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FavoriteAvatar from "../../components/FavoriteAvatar";
+import * as Contacts from "expo-contacts";
+import { useRouter } from "expo-router";
+import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
 
 const COLORS = {
   yellowPrimary: "#FFED00",
@@ -22,7 +29,12 @@ const COLORS = {
 };
 
 const TransactionScreen = () => {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showContactsModal, setShowContactsModal] = useState(false);
+  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contacts.Contact | null>(null);
 
   const favoritesList = [
     { id: "1", name: "Andrei", imageURL: "https://i.pravatar.cc/150?u=a" },
@@ -31,10 +43,60 @@ const TransactionScreen = () => {
     { id: "4", name: "Elena", imageURL: "https://i.pravatar.cc/150?u=d" },
   ];
 
+  const fetchContacts = async () => {
+    try {
+      setLoadingContacts(true);
+      
+      const { status } = await Contacts.requestPermissionsAsync();
+      
+      if (status === "granted") {
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+        });
+
+        if (data.length > 0) {
+          // Filter contacts that have phone numbers
+          const contactsWithPhone = data.filter(
+            contact => contact.phoneNumbers && contact.phoneNumbers.length > 0
+          );
+          setContacts(contactsWithPhone);
+        
+          setShowContactsModal(true);
+        
+        } else {
+          Alert.alert("Info", "Nu ai contacte salvate în agendă.");
+        }
+      } else {
+        Alert.alert(
+          "Permisiune necesară",
+          "Te rugăm să acorzi permisiunea pentru a accesa contactele."
+        );
+      }
+    } catch (error) {
+      Alert.alert("Eroare", `Nu s-au putut încărca contactele: ${error}`);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const handleContactSelect = (contact: Contacts.Contact) => {
+    setSelectedContact(contact);
+    setShowContactsModal(false);
+    // You can use the contact's phone number here
+    const phoneNumber = contact.phoneNumbers?.[0]?.number || "";
+    Alert.alert("Contact selectat", `${contact.name}: ${phoneNumber}`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* 1. TOP PROFILE HEADER */}
       <View style={styles.topHeader}>
+        <TouchableOpacity 
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <ArrowLeft size={iconSizes.lg} color={COLORS.textMain} />
+        </TouchableOpacity>
         <View style={styles.userInfo}>
           <Image
             source={{ uri: "https://i.pravatar.cc/150?u=me" }}
@@ -46,18 +108,20 @@ const TransactionScreen = () => {
           </View>
         </View>
         <TouchableOpacity style={styles.notifButton}>
-          <Bell size={24} color={COLORS.textMain} />
+          <Bell size={iconSizes.lg} color={COLORS.textMain} />
         </TouchableOpacity>
       </View>
 
       <FlatList
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          <View style={{ paddingBottom: 20 }}>
+          <View style={{ paddingBottom: spacing.lg }} pointerEvents="box-none">
             {/* 2. PROFESSIONAL SEARCH BAR */}
             <View style={styles.searchSection}>
               <View style={styles.searchBar}>
-                <Search size={20} color={COLORS.textMuted} />
+                <Search size={iconSizes.md} color={COLORS.textMuted} />
                 <TextInput
                   placeholder="Caută destinatar sau tranzacție..."
                   placeholderTextColor={COLORS.textMuted}
@@ -85,17 +149,29 @@ const TransactionScreen = () => {
               renderItem={({ item }) => (
                 <FavoriteAvatar name={item.name} imageURL={item.imageURL} />
               )}
+              nestedScrollEnabled={true}
             />
 
             {/* 4. TRANSACTION FORM CARD */}
-            <View style={styles.mainCard}>
+            <View style={styles.mainCard} pointerEvents="box-none">
               <Text style={styles.cardTitle}>Detalii Transfer Nou</Text>
 
-              <TouchableOpacity style={styles.contactPicker} onPress={() => {}}>
-                <Users size={20} color={COLORS.textMain} />
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.contactPicker,
+                  pressed && styles.contactPickerPressed
+                ]}
+                onPress={fetchContacts}
+                disabled={loadingContacts}
+              >
+                {loadingContacts ? (
+                  <ActivityIndicator size="small" color={COLORS.textMain} />
+                ) : (
+                  <Users size={iconSizes.md} color={COLORS.textMain} />
+                )}
                 <Text style={styles.contactPickerText}>Alege din agendă</Text>
-                <ArrowRight size={18} color={COLORS.textMuted} />
-              </TouchableOpacity>
+                <ArrowRight size={iconSizes.sm} color={COLORS.textMuted} />
+              </Pressable>
 
               <View style={styles.inputWrapper}>
                 <Text style={styles.label}>IBAN Destinatar</Text>
@@ -113,7 +189,7 @@ const TransactionScreen = () => {
                     keyboardType="numeric"
                     style={[
                       styles.modernInput,
-                      { flex: 1, fontSize: 24, fontWeight: "700" },
+                      { flex: 1, fontSize: fontSizes.xxl, fontWeight: "700" },
                     ]}
                   />
                   <Text style={styles.currency}>RON</Text>
@@ -129,6 +205,75 @@ const TransactionScreen = () => {
         data={[]}
         renderItem={null}
       />
+
+      {/* CONTACTS MODAL */}
+      <Modal
+        visible={showContactsModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowContactsModal(false)}
+      >
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Alege Contact ({contacts.length} contacte)
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setShowContactsModal(false)}
+                style={styles.closeButton}
+              >
+                <X size={iconSizes.lg} color={COLORS.textMain} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Add New Beneficiary Button */}
+            <TouchableOpacity 
+              style={styles.addBeneficiaryButton}
+              onPress={() => {
+                setShowContactsModal(false);
+                router.push("/(tabs)/addBeneficiary");
+              }}
+            >
+              <Plus size={iconSizes.md} color={COLORS.white} />
+              <Text style={styles.addBeneficiaryText}>Adaugă Beneficiar Nou</Text>
+            </TouchableOpacity>
+
+            {/* Contacts List */}
+            <FlatList
+              data={contacts}
+              keyExtractor={(item, index) => `contact-${index}`}
+              showsVerticalScrollIndicator={true}
+              style={styles.contactsList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.contactItem}
+                  onPress={() => handleContactSelect(item)}
+                >
+                  <View style={styles.contactAvatar}>
+                    <Text style={styles.contactInitial}>
+                      {item.name?.charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  </View>
+                  <View style={styles.contactInfo}>
+                    <Text style={styles.contactName}>{item.name || "Nume necunoscut"}</Text>
+                    <Text style={styles.contactPhone}>
+                      {item.phoneNumbers?.[0]?.number || "Fără număr"}
+                    </Text>
+                  </View>
+                  <ArrowRight size={iconSizes.sm} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>Nu s-au găsit contacte</Text>
+                </View>
+              }
+            />
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -142,46 +287,51 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     backgroundColor: COLORS.white,
   },
   userInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: spacing.md,
   },
   profilePic: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
+    width: ms(45),
+    height: ms(45),
+    borderRadius: ms(22.5),
     borderWidth: 2,
     borderColor: COLORS.yellowPrimary,
   },
   welcomeText: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "700",
     color: COLORS.textMain,
   },
   subWelcome: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: COLORS.textMuted,
   },
-  notifButton: {
-    padding: 8,
+  backButton: {
+    padding: spacing.sm,
     backgroundColor: COLORS.bgLight,
-    borderRadius: 12,
+    borderRadius: borderRadius.lg,
+  },
+  notifButton: {
+    padding: spacing.sm,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.lg,
   },
   searchSection: {
-    padding: 20,
+    padding: spacing.lg,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.white,
-    paddingHorizontal: 15,
-    height: 50,
-    borderRadius: 15,
+    paddingHorizontal: spacing.md,
+    height: ms(50),
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
     // Soft Shadow
@@ -193,17 +343,17 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
+    marginLeft: spacing.sm,
+    fontSize: fontSizes.md,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginBottom: 15,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     fontWeight: "700",
     color: COLORS.textMain,
   },
@@ -212,31 +362,35 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   favoritesScroll: {
-    paddingLeft: 20,
-    paddingBottom: 5,
+    paddingLeft: spacing.lg,
+    paddingBottom: spacing.xs,
   },
   mainCard: {
-    margin: 20,
-    padding: 20,
+    margin: spacing.lg,
+    padding: spacing.lg,
     backgroundColor: COLORS.white,
-    borderRadius: 24,
+    borderRadius: borderRadius.xxl,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: fontSizes.base,
     fontWeight: "700",
-    marginBottom: 20,
+    marginBottom: spacing.lg,
     color: COLORS.textMain,
   },
   contactPicker: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
+    padding: spacing.md,
     backgroundColor: COLORS.bgLight,
-    borderRadius: 16,
-    gap: 12,
-    marginBottom: 20,
+    borderRadius: borderRadius.xl,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  contactPickerPressed: {
+    backgroundColor: COLORS.yellowPrimary,
+    opacity: 0.8,
   },
   contactPickerText: {
     flex: 1,
@@ -244,28 +398,28 @@ const styles = StyleSheet.create({
     color: COLORS.textMain,
   },
   inputWrapper: {
-    marginBottom: 15,
+    marginBottom: spacing.md,
   },
   label: {
-    fontSize: 13,
+    fontSize: fontSizes.sm,
     fontWeight: "600",
     color: COLORS.textMuted,
-    marginBottom: 8,
-    marginLeft: 4,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
   },
   modernInput: {
     backgroundColor: COLORS.bgLight,
-    padding: 15,
-    borderRadius: 12,
-    fontSize: 16,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    fontSize: fontSizes.base,
     color: COLORS.textMain,
   },
   amountInputContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.bgLight,
-    borderRadius: 12,
-    paddingRight: 15,
+    borderRadius: borderRadius.lg,
+    paddingRight: spacing.md,
   },
   currency: {
     fontWeight: "800",
@@ -273,15 +427,105 @@ const styles = StyleSheet.create({
   },
   mainActionBtn: {
     backgroundColor: COLORS.yellowPrimary,
-    padding: 18,
-    borderRadius: 16,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: spacing.sm,
   },
   mainActionText: {
     fontWeight: "800",
-    fontSize: 16,
+    fontSize: fontSizes.base,
     color: COLORS.textMain,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: fontSizes.xl,
+    fontWeight: "700",
+    color: COLORS.textMain,
+  },
+  closeButton: {
+    padding: spacing.sm,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.lg,
+  },
+  addBeneficiaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.yellowPrimary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  addBeneficiaryText: {
+    fontWeight: "700",
+    fontSize: fontSizes.base,
+    color: COLORS.textMain,
+  },
+  contactsList: {
+    flex: 1,
+    flexGrow: 1,
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.xl,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  contactAvatar: {
+    width: ms(50),
+    height: ms(50),
+    borderRadius: ms(25),
+    backgroundColor: COLORS.yellowPrimary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  contactInitial: {
+    fontSize: fontSizes.xl,
+    fontWeight: "700",
+    color: COLORS.textMain,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: fontSizes.base,
+    fontWeight: "600",
+    color: COLORS.textMain,
+    marginBottom: spacing.xs,
+  },
+  contactPhone: {
+    fontSize: fontSizes.md,
+    color: COLORS.textMuted,
+  },
+  emptyState: {
+    padding: spacing.xxxl,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: fontSizes.base,
+    color: COLORS.textMuted,
   },
 });
 
