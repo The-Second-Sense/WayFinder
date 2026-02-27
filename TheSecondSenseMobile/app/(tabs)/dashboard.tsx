@@ -1,5 +1,5 @@
 import { useTutorial } from "@/tutorial/TutorialContext";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
 import {
   Building,
@@ -9,7 +9,7 @@ import {
   Receipt,
   Send,
 } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,17 +26,25 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AccountOverview } from "@/components/AccountOverview";
 import { TransactionList } from "@/components/TransactionList";
 import { QuickActions } from "@/components/QuickActions";
+import { VoiceControl } from "@/components/VoiceControl";
 import { useAuth } from "../contexts/AuthContext";
 import { apiService } from "./apiService";
 import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
 
 export default function DashboardScreen() {
-  const { token } = useAuth();
-  const [accountData, setAccountData] = useState({
+  const { token, user } = useAuth();
+  const [accountData, setAccountData] = useState<{
+    accountId: number | null;
+    accountNumber: string;
+    accountType: string;
+    currency: string;
+    balance: number;
+  }>({
+    accountId: null,
+    accountNumber: "",
+    accountType: "",
+    currency: "RON",
     balance: 0,
-    name: "Utilizator",
-    accountNumber: "RO00 BNRB 0000 0000",
-    monthlyChange: 0,
   });
 
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -44,7 +52,9 @@ export default function DashboardScreen() {
 
   const [voiceSessionId] = useState(Math.random().toString());
   const [pendingAction, setPendingAction] = useState<any>(null);
+  const [pendingCommand, setPendingCommand] = useState<string>(""); // Track the command waiting for confirmation
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isListeningForCommand, setIsListeningForCommand] = useState(false); // Track if waiting for user to speak
 
   const [executeMode, setExecuteMode] = useState(true); // fals pentru plan
 
@@ -61,20 +71,42 @@ export default function DashboardScreen() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [account, transactions] = await Promise.all([
-        apiService.getAccount(),
-        apiService.getTransactions(),
-      ]);
 
-      setAccountData(account);
-      setTransactions(transactions);
-    } catch (error) {
-      setAccountData({
-        balance: 12450.75,
-        name: "Alex Ionescu",
-        accountNumber: "RO49 INGB 0001 2233 4455",
-        monthlyChange: +12.4,
-      });
+      // Fetch accounts — separated so a failure here doesn't block transactions
+      let accountsData: any[] = [];
+      if (user?.id) {
+        console.log('[fetchData] user.id:', user.id);
+        try {
+          accountsData = await apiService.getAccountsByUserId(user.id);
+        } catch (accErr) {
+          console.error('[fetchData] Accounts fetch failed:', accErr);
+        }
+      } else {
+        console.warn('[fetchData] No user.id — user object:', JSON.stringify(user));
+      }
+
+      // Fetch transactions independently
+      let transactionsData: any[] = [];
+      try {
+        transactionsData = await apiService.getTransactions(user?.id ?? '');
+      } catch (txErr) {
+        console.error('[fetchData] Transactions fetch failed:', txErr);
+      }
+
+      if (accountsData.length > 0) {
+        const acc = accountsData[0];
+        setAccountData({
+          accountId: acc.accountId ?? null,
+          accountNumber: acc.accountNumber ?? "",
+          accountType: acc.accountType ?? "",
+          currency: acc.currency ?? "RON",
+          balance: acc.balance ?? 0,
+        });
+      } else {
+        console.warn('[fetchData] No accounts returned');
+      }
+
+      setTransactions(transactionsData);
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +148,21 @@ export default function DashboardScreen() {
       setIsProcessingVoice(true);
       setUserTranscription(text);
 
-      const data = await apiService.processVoiceCommand(text, voiceSessionId);
+      // In execute mode, if it's a regular command (not CONFIRM/CANCEL), just wait for confirmation
+      if (executeMode && text !== "CONFIRM" && text !== "CANCEL") {
+        setPendingCommand(text);
+        setBotMessage("Ai spus: \"" + text + "\". Confirmă să execut comanda?");
+        Speech.speak("Ai spus: " + text + ". Confirmă să execut comanda?", {
+          language: "ro-RO",
+          rate: 0.9,
+        });
+        setIsProcessingVoice(false);
+        return;
+      }
+
+      // Send to backend for processing (execute mode confirmation or plan mode)
+      const commandToSend = text === "CONFIRM" ? pendingCommand : text;
+      const data = await apiService.processVoiceCommand(commandToSend, voiceSessionId);
 
       setBotMessage(data.message);
 
@@ -129,33 +175,56 @@ export default function DashboardScreen() {
         startTutorial(data.steps);
       }
 
-      if (data.requiresConfirmation) {
+      if (data.requiresConfirmation || executeMode) {
         setPendingAction(data.payload);
       } else {
         setPendingAction(null);
       }
+
+      // Clear pending command after sending
+      setPendingCommand("");
     } catch (error) {
+      console.error('Voice command error:', error);
       setBotMessage("Momentan serviciul nu este disponibil.");
       Speech.speak("Momentan serviciul nu este disponibil.");
+      setPendingCommand("");
     } finally {
       setIsProcessingVoice(false);
     }
   };
 
-  const confirmAction = () => {
-    if (!pendingAction) return;
-    processVoiceCommand("CONFIRM");
+  const confirmAction = async () => {
+    if (executeMode && pendingCommand) {
+      // In execute mode, send the pending command to backend
+      await processVoiceCommand("CONFIRM");
+    } else if (pendingAction) {
+      // In plan mode, send confirmation
+      await processVoiceCommand("CONFIRM");
+    }
     setPendingAction(null);
   };
 
-  const cancelAction = () => {
-    processVoiceCommand("CANCEL");
+  const cancelAction = async () => {
+    await processVoiceCommand("CANCEL");
     setPendingAction(null);
+    setPendingCommand("");
+  };
+
+  const handleVoiceCommand = (command: string) => {
+    if (command) {
+      processVoiceCommand(command);
+    }
   };
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) fetchData();
+    }, [user?.id])
+  );
 
   const handleVoiceCommandAction = () => {
     if (!isVoiceRegistered) {
@@ -218,7 +287,7 @@ export default function DashboardScreen() {
             <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
             <Text style={styles.greeting}>Bună ziua,</Text>
             <Text style={[styles.userName, { fontSize: executeMode ? 24 : 18 }]}>
-              {accountData.name}
+              {user?.name ?? "Utilizator"}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
@@ -231,9 +300,10 @@ export default function DashboardScreen() {
         <View style={styles.mainCardContainer}>
           <AccountOverview
             balance={accountData.balance}
-            accountName="Cont Curent"
+            accountName={user?.name ?? ""}
             accountNumber={accountData.accountNumber}
-            monthlyChange={accountData.monthlyChange}
+            accountType={accountData.accountType}
+            currency={accountData.currency}
           />
         </View>
 
@@ -270,46 +340,52 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* MODAL */}
+      {/* VOICE MODAL */}
       <Modal visible={isVoiceModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.assistantCard}>
-            <Mic size={iconSizes.xxl} color="#000" />
-
             {isProcessingVoice && (
               <ActivityIndicator size="large" color="#FFED00" />
             )}
 
+            {!isProcessingVoice && <Mic size={iconSizes.xxl} color="#000" />}
+
             <Text style={styles.botText}>{botMessage}</Text>
 
-            <View style={styles.transcriptionBox}>
-              <Text style={styles.transcriptionText}>
-                {userTranscription || "Spune comanda ta..."}
-              </Text>
-            </View>
+            {/* Voice Control - Listen for commands */}
+            {!pendingCommand && !isProcessingVoice && (
+              <VoiceControl onCommand={handleVoiceCommand} isEnabled={true} />
+            )}
 
-            {/* Confirmare */}
-            {pendingAction && (
+            {/* Show transcription if we have a pending command */}
+            {pendingCommand && (
+              <View style={styles.transcriptionBox}>
+                <Text style={styles.transcriptionLabel}>Comanda captată:</Text>
+                <Text style={styles.transcriptionText}>{pendingCommand}</Text>
+              </View>
+            )}
+
+            {/* Confirmation buttons */}
+            {pendingCommand && !isProcessingVoice && (
               <View style={styles.confirmBox}>
-                <TouchableOpacity onPress={confirmAction}>
+                <TouchableOpacity onPress={confirmAction} style={styles.confirmBtnStyle}>
                   <Text style={styles.confirmBtn}>✅ Confirmă</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={cancelAction}>
+                <TouchableOpacity onPress={cancelAction} style={styles.cancelBtnStyle}>
                   <Text style={styles.cancelBtn}>❌ Anulează</Text>
                 </TouchableOpacity>
               </View>
             )}
 
+            {/* Close button */}
             <TouchableOpacity
-              onPress={() => processVoiceCommand("Trimite 200 lei Mariei")}
+              onPress={() => {
+                setIsVoiceModalVisible(false);
+                setPendingCommand("");
+              }}
+              style={{ marginTop: spacing.lg }}
             >
-              <Text style={{ fontWeight: "600", marginTop: 10 }}>
-                Simulează comandă
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => setIsVoiceModalVisible(false)}>
-              <Text style={{ marginTop: 10 }}>Închide</Text>
+              <Text style={{ marginTop: 10, color: "#1A1A1A", fontWeight: "600" }}>Închide</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -398,16 +474,43 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.lg,
     width: "100%",
+    marginVertical: spacing.md,
+  },
+  transcriptionLabel: {
+    color: "#666",
+    fontSize: fontSizes.sm,
+    fontWeight: "600",
+    marginBottom: spacing.xs,
   },
   transcriptionText: {
-    color: "#333",
+    color: "#1A1A1A",
     textAlign: "center",
+    fontSize: fontSizes.base,
+    fontWeight: "600",
   },
   confirmBox: {
     flexDirection: "row",
     gap: spacing.lg,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
+    width: "100%",
+    justifyContent: "center",
   },
-  confirmBtn: { color: "green", fontWeight: "700" },
-  cancelBtn: { color: "red", fontWeight: "700" },
+  confirmBtnStyle: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    minWidth: ms(100),
+    alignItems: "center",
+  },
+  cancelBtnStyle: {
+    backgroundColor: "#FF5252",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    minWidth: ms(100),
+    alignItems: "center",
+  },
+  confirmBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
+  cancelBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
 });

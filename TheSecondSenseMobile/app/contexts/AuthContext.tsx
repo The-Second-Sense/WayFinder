@@ -25,21 +25,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // TODO: Load token from AsyncStorage on app startup
+  // Keep apiService token in sync with context token at all times
   useEffect(() => {
-    // This can be enhanced to load from persistent storage
-    // const loadStoredToken = async () => {
-    //   try {
-    //     const storedToken = await AsyncStorage.getItem('authToken');
-    //     if (storedToken) {
-    //       setTokenState(storedToken);
-    //     }
-    //   } catch (error) {
-    //     console.error('Failed to load token:', error);
-    //   }
-    // };
-    // loadStoredToken();
-  }, []);
+    if (token) {
+      apiService.setToken(token);
+    } else {
+      apiService.clearToken();
+    }
+  }, [token]);
 
   const login = async (phone: string, password: string) => {
     setIsLoading(true);
@@ -50,15 +43,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.token) {
         setTokenState(data.token);
         apiService.setToken(data.token);
-        // TODO: Store token in AsyncStorage
-        // await AsyncStorage.setItem('authToken', data.token);
       }
 
       if (data.user) {
         console.log('Setting user:', data.user);
         setUserState(data.user);
-        // TODO: Store user in AsyncStorage
-        // await AsyncStorage.setItem('user', JSON.stringify(data.user));
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -76,22 +65,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setTokenState(null);
       setUserState(null);
-      // TODO: Clear AsyncStorage
-      // await AsyncStorage.removeItem('authToken');
-      // await AsyncStorage.removeItem('user');
     }
   };
 
   const setToken = (newToken: string) => {
     setTokenState(newToken);
-    // TODO: Store in AsyncStorage
-    // AsyncStorage.setItem('authToken', newToken);
   };
 
   const setUser = (newUser: User) => {
     setUserState(newUser);
-    // TODO: Store in AsyncStorage
-    // AsyncStorage.setItem('user', JSON.stringify(newUser));
   };
 
   const value: AuthContextType = {

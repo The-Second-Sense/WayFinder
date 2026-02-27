@@ -1,25 +1,25 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 // ATENȚIE: Importă doar ce există în librărie. LucideIcon nu este necesar aici.
-import { Eye, EyeOff, TrendingDown, TrendingUp } from "lucide-react-native";
+import { Eye, EyeOff } from "lucide-react-native";
 
 // 1. Exportăm interfața pentru a fi vizibilă și în App.tsx dacă e nevoie
 export interface AccountOverviewProps {
   balance: number;
   accountNumber: string;
   accountName: string;
-  monthlyChange: number;
+  accountType: string;
+  currency: string;
 }
 
-// 2. Exportăm funcția folosind "Named Export" (export function ...)
 export function AccountOverview({
   balance,
   accountNumber,
   accountName,
-  monthlyChange,
+  accountType,
+  currency,
 }: AccountOverviewProps) {
-  const [showBalance, setShowBalance] = useState(true);
-  const isPositiveChange = monthlyChange >= 0;
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   return (
     <View style={styles.card}>
@@ -27,43 +27,33 @@ export function AccountOverview({
         <View style={styles.headerRow}>
           <Text style={styles.accountName}>{accountName}</Text>
           <Pressable
-            onPress={() => setShowBalance(!showBalance)}
+            onPress={() => setShowAccountNumber(!showAccountNumber)}
             style={({ pressed }) => [
               styles.iconButton,
               pressed && { opacity: 0.7 },
             ]}
           >
-            {showBalance ? (
+            {showAccountNumber ? (
               <Eye size={20} color="#1A1A1A" />
             ) : (
               <EyeOff size={20} color="#1A1A1A" />
             )}
           </Pressable>
         </View>
-        <Text style={styles.accountNumberText}>Cont {accountNumber}</Text>
+        <Text style={styles.accountNumberText}>
+          Cont {showAccountNumber ? accountNumber : '•••• •••• ' + accountNumber.slice(-4)}
+        </Text>
+        {accountType ? (
+          <Text style={styles.accountTypeText}>{accountType}</Text>
+        ) : null}
       </View>
 
       <View style={styles.content}>
         <View style={styles.balanceContainer}>
           <Text style={styles.label}>Sold Disponibil</Text>
           <Text style={styles.balanceText}>
-            {showBalance
-              ? `${balance.toLocaleString("ro-RO", { minimumFractionDigits: 2 })} RON`
-              : "••••••"}
+            {`${Number(balance).toLocaleString("ro-RO", { minimumFractionDigits: 2 })} ${currency}`}
           </Text>
-        </View>
-
-        <View style={styles.trendContainer}>
-          {isPositiveChange ? (
-            <TrendingUp size={16} color="#1A1A1A" />
-          ) : (
-            <TrendingDown size={16} color="#1A1A1A" />
-          )}
-          <Text style={styles.trendText}>
-            {isPositiveChange ? "+" : "-"}
-            {Math.abs(monthlyChange).toFixed(2)} RON
-          </Text>
-          <Text style={styles.subtleText}> în această lună</Text>
         </View>
       </View>
     </View>
@@ -100,6 +90,12 @@ const styles = StyleSheet.create({
     color: "rgba(26, 26, 26, 0.7)",
     marginTop: 2,
   },
+  accountTypeText: {
+    fontSize: 13,
+    color: "rgba(26, 26, 26, 0.6)",
+    marginTop: 2,
+    textTransform: "capitalize",
+  },
   iconButton: {
     padding: 8,
     borderRadius: 8,
@@ -121,19 +117,5 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "bold",
     color: "#1A1A1A",
-  },
-  trendContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  trendText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    marginLeft: 6,
-  },
-  subtleText: {
-    fontSize: 14,
-    color: "rgba(26, 26, 26, 0.7)",
   },
 });

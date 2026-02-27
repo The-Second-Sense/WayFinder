@@ -11,20 +11,23 @@ import {
 } from "react-native";
 
 interface TransferFormProps {
-  onTransfer: (recipient: string, amount: number, type: string) => void;
+  onTransfer: (recipient: string, amount: number, type: string, description?: string) => void;
 }
 
 export function TransferForm({ onTransfer }: TransferFormProps) {
   const [recipient, setRecipient] = useState("");
+  const [recipientType, setRecipientType] = useState<'iban' | 'phone'>('iban');
   const [amount, setAmount] = useState("");
   const [transferType, setTransferType] = useState("internal");
+  const [description, setDescription] = useState("");
 
   const handleSubmit = () => {
     if (recipient && amount && transferType) {
-      onTransfer(recipient, parseFloat(amount), transferType);
+      onTransfer(recipient, parseFloat(amount), transferType, description);
       setRecipient("");
       setAmount("");
       setTransferType("internal");
+      setDescription("");
     }
   };
 
@@ -66,15 +69,30 @@ export function TransferForm({ onTransfer }: TransferFormProps) {
           </View>
         </View>
 
-        {/* Destinatar - Input */}
+        {/* Destinatar - Toggle + Input */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Destinatar</Text>
+          <View style={styles.recipientToggle}>
+            <Pressable
+              style={[styles.toggleBtn, recipientType === 'iban' && styles.toggleBtnActive]}
+              onPress={() => { setRecipientType('iban'); setRecipient(''); }}
+            >
+              <Text style={[styles.toggleBtnText, recipientType === 'iban' && styles.toggleBtnTextActive]}>IBAN</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.toggleBtn, recipientType === 'phone' && styles.toggleBtnActive]}
+              onPress={() => { setRecipientType('phone'); setRecipient(''); }}
+            >
+              <Text style={[styles.toggleBtnText, recipientType === 'phone' && styles.toggleBtnTextActive]}>Telefon</Text>
+            </Pressable>
+          </View>
           <TextInput
             style={styles.input}
-            placeholder="Nume sau cont"
+            placeholder={recipientType === 'iban' ? "RO00 BTRL 0000..." : "07XX XXX XXX"}
             placeholderTextColor="rgba(255, 237, 0, 0.4)"
             value={recipient}
             onChangeText={setRecipient}
+            keyboardType={recipientType === 'phone' ? 'phone-pad' : 'default'}
           />
         </View>
 
@@ -88,10 +106,24 @@ export function TransferForm({ onTransfer }: TransferFormProps) {
               placeholderTextColor="rgba(255, 237, 0, 0.4)"
               value={amount}
               onChangeText={setAmount}
-              keyboardType="numeric" // Deschide tastatura numerică
+              keyboardType="numeric"
             />
             <Text style={styles.currencySuffix}>RON</Text>
           </View>
+        </View>
+
+        {/* Descriere - Input */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Descriere (Opțional)</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            placeholder="Ex: Plată chirie, Cina..."
+            placeholderTextColor="rgba(255, 237, 0, 0.4)"
+            value={description}
+            onChangeText={setDescription}
+            multiline={true}
+            numberOfLines={3}
+          />
         </View>
 
         {/* Submit Button */}
@@ -169,6 +201,31 @@ const styles = StyleSheet.create({
     right: 12,
     color: "rgba(255, 237, 0, 0.7)",
     fontWeight: "bold",
+  },
+  recipientToggle: {
+    flexDirection: 'row' as const,
+    backgroundColor: 'rgba(255, 237, 0, 0.1)',
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 8,
+    gap: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center' as const,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#FFED00',
+  },
+  toggleBtnText: {
+    fontWeight: '600' as const,
+    color: 'rgba(255, 237, 0, 0.5)',
+    fontSize: 14,
+  },
+  toggleBtnTextActive: {
+    color: '#1A1A1A',
   },
   button: {
     backgroundColor: "#FFED00",

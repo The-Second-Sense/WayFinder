@@ -4,7 +4,7 @@ import Voice, {
 } from "@react-native-voice/voice";
 import { Mic, MicOff } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface VoiceControlProps {
   onCommand: (command: string) => void;
@@ -19,6 +19,8 @@ export function VoiceControl({
   const [transcript, setTranscript] = useState("");
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
     // Configurăm event listeners pentru Voice
     Voice.onSpeechStart = () => setIsListening(true);
     Voice.onSpeechEnd = () => setIsListening(false);
@@ -35,6 +37,7 @@ export function VoiceControl({
     };
 
     return () => {
+      if (Platform.OS === 'web') return;
       // Curățăm memoria când componenta moare
       Voice.destroy().then(Voice.removeAllListeners);
     };
@@ -47,6 +50,11 @@ export function VoiceControl({
   const toggleListening = async () => {
     if (!isEnabled) {
       onCommand(""); // Trigger pentru dialog conform logicii tale
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      onCommand('web-not-supported');
       return;
     }
 

@@ -1,8 +1,7 @@
-import { ArrowRight, Bell, Search, Users, X, Plus, ArrowLeft } from "lucide-react-native";
+import { ArrowRight, Bell, Search, Users, X, Plus, ArrowLeft, UserCircle } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import {
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -14,10 +13,11 @@ import {
   Pressable
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import FavoriteAvatar from "../../components/FavoriteAvatar";
 import * as Contacts from "expo-contacts";
 import { useRouter } from "expo-router";
 import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
+import { apiService } from "./apiService";
+import { useAuth } from "../contexts/AuthContext";
 
 const COLORS = {
   yellowPrimary: "#FFED00",
@@ -30,22 +30,42 @@ const COLORS = {
 
 const TransactionScreen = () => {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { user } = useAuth();
+  const [recipientType, setRecipientType] = useState<'iban' | 'phone'>('iban');
   const [showContactsModal, setShowContactsModal] = useState(false);
   const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contacts.Contact | null>(null);
+  const [iban, setIban] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [sourceAccountId, setSourceAccountId] = useState<number | null>(null);
 
-  const favoritesList = [
-    { id: "1", name: "Andrei", imageURL: "https://i.pravatar.cc/150?u=a" },
-    { id: "2", name: "Maria", imageURL: "https://i.pravatar.cc/150?u=b" },
-    { id: "3", name: "Luca", imageURL: "https://i.pravatar.cc/150?u=c" },
-    { id: "4", name: "Elena", imageURL: "https://i.pravatar.cc/150?u=d" },
-  ];
+  useEffect(() => {
+    if (!user?.id) return;
+    apiService.getAccountsByUserId(user.id)
+      .then((accounts) => {
+        if (accounts.length > 0) setSourceAccountId(accounts[0].accountId);
+      })
+      .catch((e) => console.error('[TransactionScreen] Failed to load account:', e));
+  }, [user?.id]);
+
+  const filteredContacts = contacts.filter((contact) => {
+    if (!contactSearch.trim()) return true;
+    const query = contactSearch.toLowerCase().trim();
+    const nameMatch = contact.name?.toLowerCase().includes(query);
+    const phoneMatch = contact.phoneNumbers?.some((p) =>
+      p.number?.replace(/\s/g, "").includes(query.replace(/\s/g, ""))
+    );
+    return nameMatch || phoneMatch;
+  });
 
   const fetchContacts = async () => {
     try {
       setLoadingContacts(true);
+      setContactSearch("");
       
       const { status } = await Contacts.requestPermissionsAsync();
       
@@ -82,9 +102,13 @@ const TransactionScreen = () => {
   const handleContactSelect = (contact: Contacts.Contact) => {
     setSelectedContact(contact);
     setShowContactsModal(false);
-    // You can use the contact's phone number here
-    const phoneNumber = contact.phoneNumbers?.[0]?.number || "";
-    Alert.alert("Contact selectat", `${contact.name}: ${phoneNumber}`);
+    const phoneNumber = contact.phoneNumbers?.[0]?.number?.replace(/\s/g, '') || '';
+    if (phoneNumber) {
+      setRecipientType('phone');
+      // Ensure international format with +
+      const normalized = phoneNumber.startsWith('+') ? phoneNumber : '+' + phoneNumber.replace(/[^0-9]/g, '');
+      setIban(normalized);
+    }
   };
 
   return (
@@ -98,12 +122,11 @@ const TransactionScreen = () => {
           <ArrowLeft size={iconSizes.lg} color={COLORS.textMain} />
         </TouchableOpacity>
         <View style={styles.userInfo}>
-          <Image
-            source={{ uri: "https://i.pravatar.cc/150?u=me" }}
-            style={styles.profilePic}
-          />
+          <View style={styles.profileIcon}>
+            <UserCircle size={ms(45)} color={COLORS.textMain} />
+          </View>
           <View>
-            <Text style={styles.welcomeText}>Bună, Alexandru</Text>
+            <Text style={styles.welcomeText}>Bună, {user?.name ?? 'utilizator'}</Text>
             <Text style={styles.subWelcome}>Cui trimiți bani azi?</Text>
           </View>
         </View>
@@ -118,39 +141,7 @@ const TransactionScreen = () => {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={{ paddingBottom: spacing.lg }} pointerEvents="box-none">
-            {/* 2. PROFESSIONAL SEARCH BAR */}
-            <View style={styles.searchSection}>
-              <View style={styles.searchBar}>
-                <Search size={iconSizes.md} color={COLORS.textMuted} />
-                <TextInput
-                  placeholder="Caută destinatar sau tranzacție..."
-                  placeholderTextColor={COLORS.textMuted}
-                  style={styles.searchInput}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-            </View>
 
-            {/* 3. FAVORITES SECTION */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Favorite recente</Text>
-              <TouchableOpacity>
-                <Text style={styles.seeAll}>Vezi tot</Text>
-              </TouchableOpacity>
-            </View>
-
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={favoritesList}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.favoritesScroll}
-              renderItem={({ item }) => (
-                <FavoriteAvatar name={item.name} imageURL={item.imageURL} />
-              )}
-              nestedScrollEnabled={true}
-            />
 
             {/* 4. TRANSACTION FORM CARD */}
             <View style={styles.mainCard} pointerEvents="box-none">
@@ -174,10 +165,38 @@ const TransactionScreen = () => {
               </Pressable>
 
               <View style={styles.inputWrapper}>
-                <Text style={styles.label}>IBAN Destinatar</Text>
+                <Text style={styles.label}>Destinatar</Text>
+                <View style={styles.recipientToggle}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, recipientType === 'iban' && styles.toggleBtnActive]}
+                    onPress={() => { setRecipientType('iban'); setIban(''); }}
+                  >
+                    <Text style={[styles.toggleBtnText, recipientType === 'iban' && styles.toggleBtnTextActive]}>IBAN</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, recipientType === 'phone' && styles.toggleBtnActive]}
+                    onPress={() => { setRecipientType('phone'); setIban('+'); }}
+                  >
+                    <Text style={[styles.toggleBtnText, recipientType === 'phone' && styles.toggleBtnTextActive]}>Telefon</Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
-                  placeholder="RO00 BTRL 0000..."
+                  placeholder={recipientType === 'iban' ? "RO00 BTRL 0000..." : "+40XXXXXXXXX"}
+                  value={iban}
+                  onChangeText={(text) => {
+                    if (recipientType === 'phone') {
+                      // Always keep the leading +
+                      if (!text.startsWith('+')) {
+                        setIban('+' + text.replace(/[^0-9]/g, ''));
+                      } else {
+                        setIban('+' + text.slice(1).replace(/[^0-9]/g, ''));
+                      }
+                    } else {
+                      setIban(text);
+                    }
+                  }}
                   style={styles.modernInput}
+                  keyboardType={recipientType === 'phone' ? 'phone-pad' : 'default'}
                 />
               </View>
 
@@ -187,6 +206,8 @@ const TransactionScreen = () => {
                   <TextInput
                     placeholder="0.00"
                     keyboardType="numeric"
+                    value={amount}
+                    onChangeText={setAmount}
                     style={[
                       styles.modernInput,
                       { flex: 1, fontSize: fontSizes.xxl, fontWeight: "700" },
@@ -196,8 +217,58 @@ const TransactionScreen = () => {
                 </View>
               </View>
 
-              <TouchableOpacity style={styles.mainActionBtn}>
-                <Text style={styles.mainActionText}>Confirmă Transferul</Text>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>Descriere (Opțional)</Text>
+                <TextInput
+                  placeholder="Ex: Plată chirie, Cina..."
+                  value={description}
+                  onChangeText={setDescription}
+                  style={styles.modernInput}
+                  multiline={true}
+                  numberOfLines={3}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.mainActionBtn, isSubmitting && { opacity: 0.6 }]}
+                onPress={async () => {
+                  if (!iban || !amount) {
+                    Alert.alert('Eroare', `Te rugăm să completezi ${recipientType === 'iban' ? 'IBAN-ul' : 'numărul de telefon'} și suma`);
+                    return;
+                  }
+                  if (!sourceAccountId) {
+                    Alert.alert('Eroare', 'Contul sursă nu a putut fi identificat. Încearcă din nou.');
+                    return;
+                  }
+                  const parsedAmount = parseFloat(amount);
+                  if (isNaN(parsedAmount) || parsedAmount < 0) {
+                    Alert.alert('Eroare', 'Suma introdusă nu este validă.');
+                    return;
+                  }
+                  setIsSubmitting(true);
+                  try {
+                    await apiService.sendMoney({
+                      sourceAccountId,
+                      recipientAccountNumber: iban,
+                      amount: parsedAmount,
+                      currency: 'RON',
+                      description: description || undefined,
+                    });
+                    Alert.alert('Succes', 'Transfer realizat cu succes!');
+                    setIban('');
+                    setAmount('');
+                    setDescription('');
+                  } catch (error) {
+                    Alert.alert('Eroare', error instanceof Error ? error.message : 'Transfer-ul a eșuat');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.mainActionText}>
+                  {isSubmitting ? "Se procesează..." : "Confirmă Transferul"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -218,7 +289,7 @@ const TransactionScreen = () => {
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Alege Contact ({contacts.length} contacte)
+                Alege Contact ({filteredContacts.length}/{contacts.length})
               </Text>
               <TouchableOpacity 
                 onPress={() => setShowContactsModal(false)}
@@ -226,6 +297,25 @@ const TransactionScreen = () => {
               >
                 <X size={iconSizes.lg} color={COLORS.textMain} />
               </TouchableOpacity>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.contactSearchBar}>
+              <Search size={iconSizes.md} color={COLORS.textMuted} />
+              <TextInput
+                placeholder="Caută după nume sau număr..."
+                placeholderTextColor={COLORS.textMuted}
+                style={styles.contactSearchInput}
+                value={contactSearch}
+                onChangeText={setContactSearch}
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+              />
+              {contactSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setContactSearch("")}>
+                  <X size={iconSizes.sm} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Add New Beneficiary Button */}
@@ -242,7 +332,7 @@ const TransactionScreen = () => {
 
             {/* Contacts List */}
             <FlatList
-              data={contacts}
+              data={filteredContacts}
               keyExtractor={(item, index) => `contact-${index}`}
               showsVerticalScrollIndicator={true}
               style={styles.contactsList}
@@ -267,7 +357,11 @@ const TransactionScreen = () => {
               )}
               ListEmptyComponent={
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>Nu s-au găsit contacte</Text>
+                  <Text style={styles.emptyText}>
+                    {contactSearch.trim()
+                      ? `Niciun contact găsit pentru "${contactSearch}"`
+                      : "Nu s-au găsit contacte"}
+                  </Text>
                 </View>
               }
             />
@@ -296,12 +390,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
   },
-  profilePic: {
+  profileIcon: {
     width: ms(45),
     height: ms(45),
     borderRadius: ms(22.5),
     borderWidth: 2,
     borderColor: COLORS.yellowPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.bgLight,
   },
   welcomeText: {
     fontSize: fontSizes.base,
@@ -322,48 +419,30 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgLight,
     borderRadius: borderRadius.lg,
   },
-  searchSection: {
-    padding: spacing.lg,
+  recipientToggle: {
+    flexDirection: 'row' as const,
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.white,
-    paddingHorizontal: spacing.md,
-    height: ms(50),
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    // Soft Shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  searchInput: {
+  toggleBtn: {
     flex: 1,
-    marginLeft: spacing.sm,
-    fontSize: fontSizes.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignItems: 'center' as const,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+  toggleBtnActive: {
+    backgroundColor: COLORS.yellowPrimary,
   },
-  sectionTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: "700",
-    color: COLORS.textMain,
-  },
-  seeAll: {
+  toggleBtnText: {
+    fontWeight: '600' as const,
     color: COLORS.textMuted,
-    fontWeight: "600",
+    fontSize: fontSizes.sm,
   },
-  favoritesScroll: {
-    paddingLeft: spacing.lg,
-    paddingBottom: spacing.xs,
+  toggleBtnTextActive: {
+    color: COLORS.textMain,
   },
   mainCard: {
     margin: spacing.lg,
@@ -479,6 +558,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: fontSizes.base,
     color: COLORS.textMain,
+  },
+  contactSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  contactSearchInput: {
+    flex: 1,
+    fontSize: fontSizes.base,
+    color: COLORS.textMain,
+    paddingVertical: spacing.xs,
   },
   contactsList: {
     flex: 1,

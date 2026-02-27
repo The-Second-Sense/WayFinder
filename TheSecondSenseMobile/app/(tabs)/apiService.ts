@@ -29,11 +29,23 @@ export interface VoiceRegRequest {
 }
 
 export interface TransactionRequest {
-  sourceAccountId: string;
+  sourceAccountId: number;
   recipientAccountNumber: string;
   amount: number;
   currency?: string;
   description?: string;
+  voiceFingerprint?: number[];
+}
+
+export interface AccountDto {
+  accountId: number;
+  userId: string;
+  accountNumber: string;
+  accountType: string;
+  currency: string;
+  balance: number;
+  isActive: boolean;
+  createdAt: string;
 }
 
 class ApiService {
@@ -70,10 +82,10 @@ class ApiService {
   // Authentication endpoints
   async login(phone: string, password: string): Promise<LoginResponse> {
     // MOCK LOGIN - bypasses real API
-    return this.mockLogin(phone, password);
+    //return this.mockLogin(phone, password);
     
     // Uncomment below to use real API
-    /*
+    
     try {
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
@@ -89,10 +101,16 @@ class ApiService {
       const data = await response.json();
       console.log('Raw login response:', data);
       
-      // Map accessToken to token for consistency
+      // Map backend field names to frontend interface
+      // Backend: accessToken, user.userId, user.fullName, user.phoneNumber
       const mappedData: LoginResponse = {
         token: data.accessToken || data.token,
-        user: data.user
+        user: data.user ? {
+          id: data.user.userId,          // userId -> id
+          name: data.user.fullName,      // fullName -> name
+          email: data.user.email,
+          phone: data.user.phoneNumber,  // phoneNumber -> phone
+        } : undefined
       };
       
       if (mappedData.token) {
@@ -102,7 +120,7 @@ class ApiService {
     } catch (error) {
       throw error;
     }
-    */
+    
   }
 
   // Mock login function for development/testing
@@ -183,20 +201,23 @@ class ApiService {
         });
 
         console.log('Raw voice registration response:', response);
-        const responseData = await response.json().catch(() => null);
-        console.log('Response data:', responseData);
-
+        
         if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
           return {
             success: false,
-            message: responseData?.message || 'Voice registration failed'
+            message: errorData?.message || 'Voice registration failed'
           };
         }
 
-        // Ensure response has success property
+        // Parse successful response
+        const responseData = await response.json().catch(() => ({}));
+        console.log('Response data:', responseData);
+
+        // If backend returns success explicitly, use it. Otherwise assume success if HTTP 200
         return {
           success: responseData?.success !== false,
-          message: responseData?.message,
+          message: responseData?.message || 'Voice registered successfully',
           data: responseData?.data || responseData
         };
     } catch (error) {
@@ -223,10 +244,10 @@ class ApiService {
   // User/Account endpoints
   async getAccount(): Promise<any> {
     // MOCK ACCOUNT - bypasses real API
-    return this.mockGetAccount();
+    //return this.mockGetAccount();
 
     // Uncomment below to use real API
-    /*
+    
     try {
       const response = await fetch(`${this.baseUrl}/account`, {
         method: 'GET',
@@ -241,7 +262,84 @@ class ApiService {
     } catch (error) {
       throw error;
     }
-    */
+    
+  }
+
+  /**
+   * GET /api/accounts/user/{userId}
+   * Returns all accounts for a user
+   */
+  async getAccountsByUserId(userId: string): Promise<any[]> {
+    const url = `${this.baseUrl}/accounts/user/${userId}`;
+    const headers = this.getHeaders();
+    console.log('[getAccountsByUserId] Requesting:', url);
+    console.log('[getAccountsByUserId] Token present:', !!this.token);
+    console.log('[getAccountsByUserId] Auth header:', (headers as any)['Authorization'] ?? 'MISSING');
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      console.log('[getAccountsByUserId] Status:', response.status);
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('[getAccountsByUserId] Error body:', body);
+        throw new Error(`Failed to fetch accounts: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[getAccountsByUserId] Data:', JSON.stringify(data));
+      return data;
+    } catch (error) {
+      console.error('[getAccountsByUserId] Network error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/accounts/{accountId}
+   * Returns a single account by its ID
+   */
+  async getAccountById(accountId: number): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/accounts/${accountId}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch account');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Get account by ID error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/accounts/{accountId}/balance
+   * Returns only the balance for an account
+   */
+  async getBalance(accountId: number): Promise<number> {
+    try {
+      const response = await fetch(`${this.baseUrl}/accounts/${accountId}/balance`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch balance');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Get balance error:', error);
+      throw error;
+    }
   }
 
   // Mock account function for development/testing
@@ -257,16 +355,16 @@ class ApiService {
     };
   }
 
-  async getTransactions(limit?: number): Promise<any[]> {
+  async getTransactions(userId: string, limit?: number): Promise<any[]> {
     // MOCK TRANSACTIONS - bypasses real API
-    return this.mockGetTransactions(limit);
+    //return this.mockGetTransactions(limit);
 
     // Uncomment below to use real API
-    /*
+    
     try {
-      let url = `${this.baseUrl}/transactions`;
+      let url = `${this.baseUrl}/trans/history?userId=${userId}`;
       if (limit) {
-        url += `?limit=${limit}`;
+        url += `&limit=${limit}`;
       }
 
       const response = await fetch(url, {
@@ -282,7 +380,7 @@ class ApiService {
     } catch (error) {
       throw error;
     }
-    */
+    
   }
 
   // Mock transactions function for development/testing
@@ -366,6 +464,7 @@ class ApiService {
   // Transaction endpoints
   async sendMoney(transactionData: TransactionRequest): Promise<any> {
     try {
+      console.log('[sendMoney] Payload:', JSON.stringify(transactionData));
       const response = await fetch(`${this.baseUrl}/trans/send`, {
         method: 'POST',
         headers: this.getHeaders(),
@@ -373,8 +472,11 @@ class ApiService {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.message || 'Transaction failed');
+        const body = await response.text().catch(() => '');
+        console.error('[sendMoney] Error body:', body);
+        let message = 'Transaction failed';
+        try { message = JSON.parse(body)?.message || message; } catch {}
+        throw new Error(message);
       }
 
       return await response.json();
