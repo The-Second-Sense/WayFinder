@@ -3,11 +3,13 @@ package com.example.backend_wayfinder.entities;
 import java.util.UUID;
 
 
+import com.example.backend_wayfinder.config.VectorType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,7 +44,8 @@ public class UserEntity {
     @Column(name = "is_voice_auth_enabled")
     private Boolean isVoiceAuthEnabled;
 
-    @Column(name = "voice_fingerprint", columnDefinition = "vector")
+    @Column(name = "voice_fingerprint", columnDefinition = "vector(512)")
+    @Type(value = VectorType.class)
     private ArrayList<Double> voiceFingerprint;
 
     @Column(name = "created_at")

@@ -1,19 +1,16 @@
 package com.example.backend_wayfinder.controller;
 
-import java.util.UUID;
-
-import com.example.backend_wayfinder.Dto.AccountDto;
-import com.example.backend_wayfinder.Dto.CreateAccountRequest;
-import com.example.backend_wayfinder.service.AccountService;
-import jakarta.validation.Valid;
+import com.example.backend_wayfinder.Dto.UserDto;
+import com.example.backend_wayfinder.entities.UserEntity;
+import com.example.backend_wayfinder.repository.UserRepository;
+import com.example.backend_wayfinder.service.JwtService;
+import com.example.backend_wayfinder.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/user")
@@ -22,163 +19,29 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class UserController {
 
-    private final AccountService accountService;
+    private final UserService userService;
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
 
     /**
-     * Fetch current balance for "Acasă" (Home) tab
-     * GET /api/user/balance
-     */
-    @GetMapping("/balance")
-    public ResponseEntity<BalanceResponse> getBalance(@RequestHeader("Authorization") String token) {
-        log.info("Fetching balance");
-
-        try {
-            // TODO: Extract userId from token
-            UUID userId = UUID.randomUUID(); // TODO: Extract from token
-
-            List<AccountDto> accounts = accountService.getAccountsByUserId(userId);
-
-            // Calculate total balance across all accounts
-            BigDecimal totalBalance = accounts.stream()
-                    .filter(AccountDto::getIsActive)
-                    .map(AccountDto::getBalance)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BalanceResponse response = BalanceResponse.builder()
-                    .totalBalance(totalBalance)
-                    .currency("RON")
-                    .accounts(accounts)
-                    .build();
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Failed to fetch balance: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    /**
-     * List linked payment methods (accounts/cards)
-     * GET /api/user/cards
-     */
-    @GetMapping("/cards")
-    public ResponseEntity<List<AccountDto>> getCards(
-            @RequestHeader("Authorization") String token,
-            @RequestParam UUID userId) {
-
-        log.info("Fetching payment methods for user ID: {}", userId);
-
-        try {
-            List<AccountDto> accounts = accountService.getAccountsByUserId(userId);
-            return ResponseEntity.ok(accounts);
-        } catch (Exception e) {
-            log.error("Failed to fetch payment methods: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    /**
-     * Account details for the "Cont" (Account) tab
      * GET /api/user/profile
+     * Returns the logged-in user's profile (name, email, phone, voice auth status).
      */
     @GetMapping("/profile")
-    public ResponseEntity<AccountDto> getProfile(
-            @RequestHeader("Authorization") String token,
-            @RequestParam UUID userId) {
-
+    public ResponseEntity<UserDto> getProfile(@RequestHeader("Authorization") String authHeader) {
+        UUID userId = getUserIdFromToken(authHeader);
         log.info("Fetching profile for user ID: {}", userId);
-
-        try {
-            // Get primary account
-            List<AccountDto> accounts = accountService.getAccountsByUserId(userId);
-
-            if (accounts.isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            // Return first active account as primary
-            AccountDto primaryAccount = accounts.stream()
-                    .filter(AccountDto::getIsActive)
-                    .findFirst()
-                    .orElse(accounts.get(0));
-
-            return ResponseEntity.ok(primaryAccount);
-        } catch (Exception e) {
-            log.error("Failed to fetch profile: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
+        UserDto user = userService.getUserById(userId);
+        return ResponseEntity.ok(user);
     }
 
-    /**
-     * Create new account
-     * POST /api/user/account
-     */
-    @PostMapping("/account")
-    public ResponseEntity<AccountDto> createAccount(
-            @RequestHeader("Authorization") String token,
-            @Valid @RequestBody CreateAccountRequest request) {
+    // ── helper ───────────────────────────────────────────────────────────────
 
-        log.info("Creating account for user ID: {}", request.getUserId());
-
-        try {
-            AccountDto account = accountService.createAccount(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(account);
-        } catch (Exception e) {
-            log.error("Account creation failed: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    /**
-     * Get account by ID
-     * GET /api/user/account/{accountId}
-     */
-    @GetMapping("/account/{accountId}")
-    public ResponseEntity<AccountDto> getAccount(
-            @RequestHeader("Authorization") String token,
-            @PathVariable Integer accountId) {
-
-        log.info("Fetching account ID: {}", accountId);
-
-        try {
-            AccountDto account = accountService.getAccountById(accountId);
-            return ResponseEntity.ok(account);
-        } catch (Exception e) {
-            log.error("Failed to fetch account: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    /**
-     * Close account
-     * DELETE /api/user/account/{accountId}
-     */
-    @DeleteMapping("/account/{accountId}")
-    public ResponseEntity<String> closeAccount(
-            @RequestHeader("Authorization") String token,
-            @PathVariable Integer accountId,
-            @RequestParam UUID userId) {
-
-        log.info("Closing account ID: {} for user ID: {}", accountId, userId);
-
-        try {
-            accountService.closeAccount(accountId, userId);
-            return ResponseEntity.ok("Account closed successfully");
-        } catch (Exception e) {
-            log.error("Failed to close account: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
-    // Helper DTO class
-    @lombok.Data
-    @lombok.Builder
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    public static class BalanceResponse {
-        private BigDecimal totalBalance;
-        private String currency;
-        private List<AccountDto> accounts;
+    private UUID getUserIdFromToken(String authHeader) {
+        String token = authHeader.substring(7);
+        String email = jwtService.extractUsername(token);
+        UserEntity user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return user.getUserId();
     }
 }
-

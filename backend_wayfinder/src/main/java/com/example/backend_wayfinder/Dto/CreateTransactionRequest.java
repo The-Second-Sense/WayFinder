@@ -1,7 +1,5 @@
 package com.example.backend_wayfinder.Dto;
 
-
-import java.util.UUID;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,7 +18,7 @@ import java.util.List;
 @AllArgsConstructor
 public class CreateTransactionRequest {
 
-    @NotNull(message = "Source account ID is required")
+    /** Optional — if null the backend resolves it from the JWT (first active account of the user) */
     private Integer sourceAccountId;
 
     @NotBlank(message = "Destination account number is required")
@@ -36,12 +34,11 @@ public class CreateTransactionRequest {
     @Size(max = 200, message = "Description cannot exceed 200 characters")
     private String description;
 
-    @NotBlank(message = "Initiated by is required (AI or USER)")
+    /** Optional — defaults to "USER" if not provided */
     private String initiatedBy;
-
 
     private Integer aiInteractionLogId;
 
-    @Size(min = 512, max = 512, message = "Voice fingerprint must be exactly 512 dimensions")
+    /** Optional voice fingerprint for additional auth on high-value transfers */
     private List<Double> currentVoiceFingerprint;
 }

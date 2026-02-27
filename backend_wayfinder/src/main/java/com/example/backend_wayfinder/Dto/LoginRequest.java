@@ -1,5 +1,6 @@
 package com.example.backend_wayfinder.Dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,10 +11,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LoginRequest {
-    private String email;
+    @NotBlank(message = "Phone number is required")
     private String phone;
+
+    @NotBlank(message = "Password is required")
     private String password;
-    private Boolean voiceAuth;
-    private byte[] audioSample;
 }
 

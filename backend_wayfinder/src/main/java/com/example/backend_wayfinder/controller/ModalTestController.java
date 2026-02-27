@@ -19,6 +19,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/modal-test")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+
 public class ModalTestController {
 
     private final ModalAiService modalAiService;

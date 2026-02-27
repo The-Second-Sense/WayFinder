@@ -7,14 +7,19 @@ import com.example.backend_wayfinder.Dto.TransactionDto;
 import com.example.backend_wayfinder.entities.AccountEntity;
 import com.example.backend_wayfinder.entities.TransactionEntity;
 import com.example.backend_wayfinder.entities.UserEntity;
+import com.example.backend_wayfinder.exception.AccountInactiveException;
+import com.example.backend_wayfinder.exception.InsufficientBalanceException;
+import com.example.backend_wayfinder.exception.ResourceNotFoundException;
+import com.example.backend_wayfinder.exception.VoiceAuthenticationException;
 import com.example.backend_wayfinder.repository.AccountRepository;
 import com.example.backend_wayfinder.repository.TransactionRepository;
 import com.example.backend_wayfinder.service.TransactionService;
 import com.example.backend_wayfinder.service.VoiceAuthenticationService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,8 +28,8 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 @Slf4j
+@Transactional(isolation = Isolation.SERIALIZABLE)
 public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionRepository transactionRepository;
@@ -32,27 +37,28 @@ public class TransactionServiceImpl implements TransactionService {
     private final VoiceAuthenticationService voiceAuthenticationService;
 
     @Override
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public TransactionDto createTransaction(CreateTransactionRequest request) {
         log.info("Creating transaction from account ID: {} to account: {}",
                 request.getSourceAccountId(), request.getDestinationAccountNumber());
 
-        // Set default currency if not provided
         if (request.getCurrency() == null || request.getCurrency().isEmpty()) {
             request.setCurrency("RON");
         }
+        if (request.getInitiatedBy() == null || request.getInitiatedBy().isEmpty()) {
+            request.setInitiatedBy("USER");
+        }
 
-        // Get source account
-        AccountEntity sourceAccount = accountRepository.findById(request.getSourceAccountId())
-                .orElseThrow(() -> new RuntimeException("Source account not found"));
+        // Lock the source account row — any concurrent transfer on this account will wait here
+        AccountEntity sourceAccount = accountRepository.findByIdWithLock(request.getSourceAccountId())
+                .orElseThrow(() -> new ResourceNotFoundException("Source account not found: " + request.getSourceAccountId()));
 
         UserEntity user = sourceAccount.getUser();
 
-        // Validate account is active
         if (!sourceAccount.getIsActive()) {
-            throw new RuntimeException("Source account is not active");
+            throw new AccountInactiveException("Source account is not active");
         }
 
-        // Voice authentication if enabled and fingerprint provided
         if (user.getIsVoiceAuthEnabled() && request.getCurrentVoiceFingerprint() != null) {
             boolean isVoiceValid = voiceAuthenticationService.verifyVoice(
                     request.getCurrentVoiceFingerprint(),
@@ -60,17 +66,18 @@ public class TransactionServiceImpl implements TransactionService {
             );
             if (!isVoiceValid) {
                 log.error("Voice authentication failed for user ID: {}", user.getUserId());
-                throw new RuntimeException("Voice authentication failed");
+                throw new VoiceAuthenticationException("Voice authentication failed");
             }
             log.info("Voice authentication successful for user ID: {}", user.getUserId());
         }
 
-        // Validate sufficient balance
         if (sourceAccount.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new RuntimeException("Insufficient balance");
+            throw new InsufficientBalanceException(
+                    String.format("Insufficient balance. Available: %.2f %s, Requested: %.2f %s",
+                            sourceAccount.getBalance(), sourceAccount.getCurrency(),
+                            request.getAmount(), request.getCurrency()));
         }
 
-        // Create transaction
         TransactionEntity transaction = TransactionEntity.builder()
                 .sourceAccount(sourceAccount)
                 .destinationAccountNumber(request.getDestinationAccountNumber())
@@ -81,19 +88,25 @@ public class TransactionServiceImpl implements TransactionService {
                 .initiatedBy(request.getInitiatedBy())
                 .build();
 
-        // Save transaction
         TransactionEntity savedTransaction = transactionRepository.save(transaction);
 
-        // Update account balance
-        BigDecimal newBalance = sourceAccount.getBalance().subtract(request.getAmount());
-        sourceAccount.setBalance(newBalance);
+        // Debit sender (balance was just read with a lock so it's always fresh)
+        sourceAccount.setBalance(sourceAccount.getBalance().subtract(request.getAmount()));
         accountRepository.save(sourceAccount);
+        log.info("Debited {} {} from account ID: {}", request.getAmount(), request.getCurrency(), sourceAccount.getAccountId());
 
-        // Update transaction status to completed
+        // Credit receiver if account exists in this bank — also locked to avoid double-credit
+        accountRepository.findByAccountNumberWithLock(request.getDestinationAccountNumber())
+                .ifPresent(destinationAccount -> {
+                    destinationAccount.setBalance(destinationAccount.getBalance().add(request.getAmount()));
+                    accountRepository.save(destinationAccount);
+                    log.info("Credited {} {} to account ID: {}", request.getAmount(), request.getCurrency(), destinationAccount.getAccountId());
+                });
+
         savedTransaction.setStatus("COMPLETED");
         transactionRepository.save(savedTransaction);
 
-        log.info("Transaction created successfully with ID: {}", savedTransaction.getId());
+        log.info("Transaction completed successfully with ID: {}", savedTransaction.getId());
 
         return convertToDto(savedTransaction);
     }
@@ -101,7 +114,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     public TransactionDto getTransactionById(Integer transactionId) {
         TransactionEntity transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
         return convertToDto(transaction);
     }
 
@@ -115,11 +128,39 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     public List<TransactionDto> getTransactionsByUserId(UUID userId) {
-        // Get all accounts for user, then get all transactions
         List<AccountEntity> accounts = accountRepository.findByUser_UserId(userId);
-        return accounts.stream()
+
+        List<String> accountNumbers = accounts.stream()
+                .map(AccountEntity::getAccountNumber)
+                .collect(Collectors.toList());
+
+        List<Integer> accountIds = accounts.stream()
+                .map(AccountEntity::getAccountId)
+                .collect(Collectors.toList());
+
+        // Sent transactions
+        List<TransactionEntity> sent = accounts.stream()
                 .flatMap(account -> transactionRepository.findBySourceAccount_AccountId(account.getAccountId()).stream())
-                .map(this::convertToDto)
+                .collect(Collectors.toList());
+
+        // Received transactions (destination is one of the user's account numbers)
+        List<TransactionEntity> received = accountNumbers.stream()
+                .flatMap(accountNumber -> transactionRepository.findByDestinationAccountNumber(accountNumber).stream())
+                // exclude self-transfers already in sent list
+                .filter(t -> !accountIds.contains(t.getSourceAccount().getAccountId()))
+                .collect(Collectors.toList());
+
+        // Tag direction and merge, newest first
+        List<TransactionDto> sentDtos = sent.stream()
+                .map(t -> convertToDto(t, "SENT"))
+                .collect(Collectors.toList());
+
+        List<TransactionDto> receivedDtos = received.stream()
+                .map(t -> convertToDto(t, "RECEIVED"))
+                .collect(Collectors.toList());
+
+        return java.util.stream.Stream.concat(sentDtos.stream(), receivedDtos.stream())
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .collect(Collectors.toList());
     }
 
@@ -136,7 +177,7 @@ public class TransactionServiceImpl implements TransactionService {
         log.info("Updating transaction ID: {} to status: {}", transactionId, status);
 
         TransactionEntity transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
 
         transaction.setStatus(status);
         transactionRepository.save(transaction);
@@ -147,7 +188,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     public String getTransactionStatus(Integer transactionId) {
         TransactionEntity transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
         return transaction.getStatus();
     }
 
@@ -161,7 +202,7 @@ public class TransactionServiceImpl implements TransactionService {
     public BigDecimal getTotalReceived(Integer accountId, LocalDateTime startDate, LocalDateTime endDate) {
         // Get account details
         AccountEntity account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new RuntimeException("Account not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountId));
 
         // Find transactions where this account is the destination
         List<TransactionEntity> receivedTransactions = transactionRepository
@@ -179,8 +220,12 @@ public class TransactionServiceImpl implements TransactionService {
         return transactionRepository.existsById(transactionId);
     }
 
-    // Helper method
+    // Helper methods
     private TransactionDto convertToDto(TransactionEntity transaction) {
+        return convertToDto(transaction, null);
+    }
+
+    private TransactionDto convertToDto(TransactionEntity transaction, String direction) {
         return TransactionDto.builder()
                 .id(transaction.getId())
                 .sourceAccountId(transaction.getSourceAccount().getAccountId())
@@ -189,8 +234,8 @@ public class TransactionServiceImpl implements TransactionService {
                 .currency(transaction.getCurrency())
                 .description(transaction.getDescription())
                 .status(transaction.getStatus())
-                .initiatedBy(transaction.getInitiatedBy())
                 .createdAt(transaction.getCreatedAt())
+                .direction(direction)
                 .build();
     }
 }

@@ -15,7 +15,8 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
-@Entity(name = "accounts")
+@Entity
+@Table(name = "accounts")
 @Builder
 
 public class AccountEntity {
@@ -38,8 +39,9 @@ public class AccountEntity {
     @Column(length = 3)
     private String currency;
 
-    @Column(precision = 15, scale = 2)
-    private BigDecimal balance;
+    @Column(name = "balance", precision = 15, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal balance = new BigDecimal("100.00");
 
     @Column(name = "is_active")
     private Boolean isActive;

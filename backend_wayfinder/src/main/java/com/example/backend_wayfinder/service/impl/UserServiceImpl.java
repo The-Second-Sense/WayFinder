@@ -5,17 +5,20 @@ import java.util.UUID;
 import com.example.backend_wayfinder.Dto.CreateUserRequest;
 import com.example.backend_wayfinder.Dto.UpdateUserRequest;
 import com.example.backend_wayfinder.Dto.UserDto;
+import com.example.backend_wayfinder.entities.AccountEntity;
 import com.example.backend_wayfinder.entities.UserEntity;
+import com.example.backend_wayfinder.repository.AccountRepository;
 import com.example.backend_wayfinder.repository.UserRepository;
 import com.example.backend_wayfinder.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +26,7 @@ import java.util.ArrayList;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-
+    private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -31,31 +34,34 @@ public class UserServiceImpl implements UserService {
     public UserDto createUser(CreateUserRequest request) {
         log.info("Creating new user with email: {}", request.getEmail());
 
-
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new IllegalArgumentException("User with email " + request.getEmail() + " already exists");
         }
 
-        // Build user entity
+        // Build and save user entity
         UserEntity user = UserEntity.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .phoneNumber(request.getPhoneNumber())
-                .isVoiceAuthEnabled(request.getEnableVoiceAuth() != null ? request.getEnableVoiceAuth() : false)
+                .isVoiceAuthEnabled(false)
                 .build();
 
-        // If voice authentication is enabled and voice sample provided
-        if (Boolean.TRUE.equals(request.getEnableVoiceAuth()) && request.getVoiceSample() != null) {
-            // TODO: Process voice sample and generate voice profile
-            // For now, we'll create a placeholder
-            user.setVoiceFingerprint(new ArrayList<>());
-            log.info("Voice authentication enabled for user: {}", request.getEmail());
-        }
-
-        // Save user
         UserEntity savedUser = userRepository.save(user);
         log.info("User created successfully with ID: {}", savedUser.getUserId());
+
+        // Auto-create a default RON CURRENT account for the new user
+        AccountEntity defaultAccount = AccountEntity.builder()
+                .user(savedUser)
+                .accountNumber(generateAccountNumber())
+                .accountType("CURRENT")
+                .balance(BigDecimal.ZERO)
+                .currency("RON")
+                .isActive(true)
+                .build();
+
+        accountRepository.save(defaultAccount);
+        log.info("Default CURRENT/RON account created for user ID: {}", savedUser.getUserId());
 
         return mapToDto(savedUser);
     }
@@ -150,19 +156,10 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Voice fingerprint cannot be empty");
         }
 
-        // TODO: Process voice fingerprint and generate voice profile
-        // This would typically involve:
-        // 1. Extracting voice features using ML model
-        // 2. Creating a voice embedding/profile
-        // 3. Storing the profile for future comparisons
-
-        // For now, create a placeholder voice profile
         user.setVoiceFingerprint(new ArrayList<>());
         user.setIsVoiceAuthEnabled(true);
-
         UserEntity updatedUser = userRepository.save(user);
         log.info("Voice authentication enabled successfully for user ID: {}", userId);
-
         return mapToDto(updatedUser);
     }
 
@@ -176,16 +173,29 @@ public class UserServiceImpl implements UserService {
 
         user.setIsVoiceAuthEnabled(false);
         user.setVoiceFingerprint(null);
-
         UserEntity updatedUser = userRepository.save(user);
         log.info("Voice authentication disabled successfully for user ID: {}", userId);
-
         return mapToDto(updatedUser);
     }
 
-    /**
-     * Maps UserEntity to UserDto (excludes sensitive data like passwordHash)
-     */
+    // ── helpers ─────────────────────────────────────────────────────────────
+
+    private String generateAccountNumber() {
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder("RO");
+        for (int i = 0; i < 16; i++) {
+            sb.append(random.nextInt(10));
+        }
+        // Ensure uniqueness
+        while (accountRepository.existsByAccountNumber(sb.toString())) {
+            sb = new StringBuilder("RO");
+            for (int i = 0; i < 16; i++) {
+                sb.append(random.nextInt(10));
+            }
+        }
+        return sb.toString();
+    }
+
     private UserDto mapToDto(UserEntity user) {
         return UserDto.builder()
                 .userId(user.getUserId())
@@ -199,4 +209,3 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 }
-

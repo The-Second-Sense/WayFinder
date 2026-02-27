@@ -1,7 +1,5 @@
 package com.example.backend_wayfinder.Dto;
 
-
-import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,7 +20,8 @@ public class TransactionDto {
     private String currency;
     private String description;
     private String status;
-    private String initiatedBy;
     private LocalDateTime createdAt;
+    /** "SENT" or "RECEIVED" — populated relative to the requesting user */
+    private String direction;
 }
 

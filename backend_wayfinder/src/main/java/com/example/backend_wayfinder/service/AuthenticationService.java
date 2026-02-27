@@ -7,7 +7,7 @@ import com.example.backend_wayfinder.Dto.*;
 public interface AuthenticationService {
 
     // Login/Authentication
-    AuthenticationResponse login(String email, String password);
+    AuthenticationResponse login(String phone, String password);
     AuthenticationResponse voiceLogin(byte[] voiceSample, String email);
     void logout(UUID userId);
 
@@ -15,7 +15,7 @@ public interface AuthenticationService {
     boolean changePassword(UUID userId, String currentPassword, String newPassword);
 
     // Security validations
-    boolean validateCredentials(String email, String password);
+    boolean validateCredentials(String phone, String password);
     boolean validateVoiceAuthentication(byte[] voiceSample, UUID userId);
 
     // Session management

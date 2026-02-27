@@ -11,6 +11,7 @@ import com.example.backend_wayfinder.repository.UserRepository;
 import com.example.backend_wayfinder.service.AccountService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AccountServiceImpl implements AccountService {
 
     private final AccountRepository accountRepository;
@@ -39,13 +41,15 @@ public class AccountServiceImpl implements AccountService {
                 .user(user)
                 .accountNumber(accountNumber)
                 .accountType(request.getAccountType())
-                .balance(BigDecimal.ZERO)
+                .balance(new BigDecimal("100.00"))
                 .currency(request.getCurrency() != null ? request.getCurrency() : "RON")
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         AccountEntity savedAccount = accountRepository.save(account);
+        log.info("Account created - ID: {}, Balance set: {}, Balance after save: {}",
+                savedAccount.getAccountId(), account.getBalance(), savedAccount.getBalance());
         return convertToDto(savedAccount);
     }
 

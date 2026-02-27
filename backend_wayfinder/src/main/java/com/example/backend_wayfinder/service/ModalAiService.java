@@ -5,7 +5,13 @@ import com.example.backend_wayfinder.exception.AiServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -13,6 +19,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.Base64;
 
 @Slf4j
 @Service
@@ -29,6 +36,9 @@ public class ModalAiService {
 
     @Value("${modal.deberta.url}")
     private String modalDebertaUrl;
+
+    @Value("${modal.fingerprint.url:}")
+    private String modalFingerprintUrl;
 
     @Value("${modal.ai.retry.max-attempts:3}")
     private int maxRetryAttempts;
@@ -405,6 +415,78 @@ public class ModalAiService {
     }
 
     /**
+     * Extract voice fingerprint from audio using WavLM model
+     * This creates a 512-dimensional embedding for voice authentication
+     *
+     * @param audioBase64 Base64 encoded audio file (M4A, WAV, MP3, etc.)
+     * @return List of 512 double values representing the voice fingerprint
+     */
+    public List<Double> extractVoiceFingerprint(String audioBase64) {
+        log.info("Extracting voice fingerprint from audio (size: {} bytes)", audioBase64.length());
+
+        if (modalFingerprintUrl == null || modalFingerprintUrl.isEmpty()) {
+            throw new AiServiceException(
+                "FingerprintExtractor",
+                "Fingerprint service URL not configured",
+                false
+            );
+        }
+
+        // Modal @web_endpoint exposes the function at the root URL, not /get_fingerprint
+        String endpoint = modalFingerprintUrl;
+
+        return executeWithRetry(
+            "FingerprintExtractor",
+            endpoint,
+            () -> {
+                // Decode base64 to bytes
+                byte[] audioBytes = Base64.getDecoder().decode(audioBase64);
+
+                // Create multipart request
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+                // Create file resource from bytes
+                ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "audio.m4a";
+                    }
+                };
+
+                // Build multipart body
+                MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+                body.add("audio", audioResource);
+
+                HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+                // Call the Modal endpoint - it returns the fingerprint array directly
+                @SuppressWarnings("unchecked")
+                List<Double> fingerprint = restTemplate.postForObject(
+                    endpoint,
+                    requestEntity,
+                    List.class
+                );
+
+                if (fingerprint == null || fingerprint.isEmpty()) {
+                    throw new AiServiceException(
+                        "FingerprintExtractor",
+                        "Received null or empty fingerprint from extraction service",
+                        false
+                    );
+                }
+
+                if (fingerprint.size() != 512) {
+                    log.warn("Unexpected fingerprint dimension: {} (expected 512)", fingerprint.size());
+                }
+
+                log.info("Voice fingerprint extracted successfully. Dimension: {}", fingerprint.size());
+                return fingerprint;
+            }
+        );
+    }
+
+    /**
      * Get health status of all AI services
      */
     public Map<String, Object> getServicesHealthStatus() {
@@ -429,6 +511,7 @@ public class ModalAiService {
 
         return health;
     }
+
 
     @FunctionalInterface
     private interface RetryableOperation<T> {

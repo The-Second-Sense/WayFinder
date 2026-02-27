@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -16,7 +18,7 @@ public class AuthenticationResponse {
     private String accessToken;
     private String refreshToken;
     private UserDto user;
+    private List<AccountDto> accounts;
     private boolean requiresMfa;        // If additional MFA is needed
 
 }
-
