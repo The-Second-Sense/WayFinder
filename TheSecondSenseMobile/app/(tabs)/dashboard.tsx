@@ -1,5 +1,7 @@
 import { useTutorial } from "@/tutorial/TutorialContext";
 import { router, useFocusEffect } from "expo-router";
+import { TutorialTarget } from "@/tutorial/TutorialTarget";
+import { spacing, fontSizes, borderRadius, ms, iconSizes } from "@/constants/responsive";
 import * as Speech from "expo-speech";
 import {
   Building,
@@ -14,12 +16,12 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -29,7 +31,6 @@ import { QuickActions } from "@/components/QuickActions";
 import { VoiceControl } from "@/components/VoiceControl";
 import { useAuth } from "../contexts/AuthContext";
 import { apiService } from "./apiService";
-import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
 
 export default function DashboardScreen() {
   const { token, user } = useAuth();
@@ -66,7 +67,7 @@ export default function DashboardScreen() {
   );
   const [userTranscription, setUserTranscription] = useState("");
 
-  const {startTutorial, notifyActionDone} = useTutorial();
+  const { startTutorial, notifyActionDone } = useTutorial();
 
   const fetchData = async () => {
     try {
@@ -126,7 +127,7 @@ export default function DashboardScreen() {
         rate: 0.9,
       });
 
-      if(data.steps && Array.isArray(data.steps)) {
+      if (data.steps && Array.isArray(data.steps)) {
         startTutorial(data.steps);
       }
 
@@ -171,7 +172,7 @@ export default function DashboardScreen() {
         rate: 0.9,
       });
 
-      if(!executeMode && data.steps && Array.isArray(data.steps)) {
+      if (!executeMode && data.steps && Array.isArray(data.steps)) {
         startTutorial(data.steps);
       }
 
@@ -236,28 +237,24 @@ export default function DashboardScreen() {
     }
     setIsVoiceModalVisible(true);
   };
-  
+
   const actions = [
     {
-      targetId: "sendButton",
       icon: Send,
       label: "Trimite",
       onClick: () => router.push("/transaction"),
     },
     {
-      targetId: "facturiButton",
       icon: Receipt,
       label: "Facturi",
       onClick: () => router.push("/facturi"),
     },
     {
-      targetId: "carduriButton",
       icon: CreditCard,
       label: "Carduri",
       onClick: () => router.push("/cards"),
     },
     {
-      targetId: "detaliiButton",
       icon: Building,
       label: "Detalii",
       onClick: () => router.push("/detalii"),
@@ -282,6 +279,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* HEADER */}
+        
         <View style={styles.topHeader}>
           <View>
             <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
@@ -307,36 +305,87 @@ export default function DashboardScreen() {
           />
         </View>
 
-        <View style={styles.sectionContainer}>
-          <QuickActions actions={actions} />
-        </View>
+        <View style={styles.actionGrid}>
+        <TutorialTarget targetId="sendButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("sendButton", "press");
+              router.push("/transaction");
+            }}
+          >
+            <Send size={24} color="#000" />
+            <Text style={styles.actionLabel}>Trimite</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
 
-        <View style={styles.statsCard}>
-          <PieChart size={iconSizes.md} color="#EAB308" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
-            <Text style={styles.statsSubtitle}>
-              Luna aceasta ai economisit 450 RON.
-            </Text>
-          </View>
-        </View>
+        <TutorialTarget targetId="facturiButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("facturiButton", "press");
+              router.push("/facturi");
+            }}
+          >
+            <Receipt size={24} color="#000" />
+            <Text style={styles.actionLabel}>Facturi</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
 
-        <View style={styles.transactionSection}>
-          <Text style={styles.sectionTitle}>Activitate Recentă</Text>
-          <TransactionList transactions={transactions.slice(0, 4)} scrollable={false} />
+        <TutorialTarget targetId="carduriButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("carduriButton", "press");
+              router.push("/cards");
+            }}
+          >
+            <CreditCard size={24} color="#000" />
+            <Text style={styles.actionLabel}>Carduri</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+
+        <TutorialTarget targetId="detaliiButton">
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              notifyActionDone("detaliiButton", "press");
+              router.push("/detalii");
+            }}
+          >
+            <Building size={24} color="#000" />
+            <Text style={styles.actionLabel}>Detalii</Text>
+          </TouchableOpacity>
+        </TutorialTarget>
+      </View>
+
+      <View style={styles.statsCard}>
+        <PieChart size={22} color="#EAB308" />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.statsTitle}>Insight Cheltuieli</Text>
+          <Text style={styles.statsSubtitle}>
+            Luna aceasta ai economisit 450 RON.
+          </Text>
         </View>
-      </ScrollView>
+      </View>
+
+      <View style={styles.transactionSection}>
+        <Text style={styles.sectionTitle}>Activitate Recentă</Text>
+        <View style={styles.listWrapper}>
+          <TransactionList transactions={transactions.slice(0, 4)} />
+        </View>
+      </View>
 
       {/* FAB */}
       <View style={styles.fabContainer}>
         <TouchableOpacity
           style={[
             styles.fabMain,
-            { width: executeMode ? ms(90) : ms(60), height: executeMode ? ms(90) : ms(60) },
+            { width: executeMode ? 90 : 60, height: executeMode ? 90 : 60 },
           ]}
           onPress={handleVoiceCommandAction}
         >
-          <Mic size={executeMode ? iconSizes.xl : iconSizes.lg} color="#000" />
+          <Mic size={executeMode ? 40 : 28} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -390,62 +439,68 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+      </ScrollView >
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8F9FA" },
-  scrollContainer: { flex: 1 },
-  scrollContent: { paddingBottom: ms(120) },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  secureText: { fontSize: fontSizes.sm, color: "green", marginBottom: spacing.xs },
-  greeting: { fontSize: fontSizes.sm, color: "#555" },
+  scrollContent: { paddingBottom: 100 },
+  secureText: { fontSize: 12, color: "green", marginBottom: 4 },
+  greeting: { fontSize: 13, color: "#555" },
   userName: { fontWeight: "700", color: "#000" },
   topHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
   },
-  mainCardContainer: { paddingHorizontal: spacing.lg },
-  sectionContainer: { marginTop: spacing.md },
+  mainCardContainer: { paddingHorizontal: 16 },
+  sectionContainer: { marginTop: 15 },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
   actionButton: {
-    width: "49%",
+    width: "70%",
     backgroundColor: "#FFED00",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: ms(100),
-    borderRadius: borderRadius.lg,
+    padding: 16,
+    paddingVertical: 18,
+    minHeight: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 12,
   },
-  actionLabel: { 
-    marginTop: spacing.sm, 
-    fontWeight: "700", 
-    fontSize: fontSizes.huge,
-    textAlign: "center",
-    color: "#000",
-    lineHeight: fontSizes.base + 2,
-  },
+  actionLabel: { marginTop: 10, fontWeight: "700", fontSize: 16 },
   statsCard: {
-    margin: spacing.lg,
-    padding: spacing.lg,
+    margin: 16,
+    padding: 16,
     backgroundColor: "#1A1A1A",
-    borderRadius: borderRadius.xl,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 10,
   },
   statsTitle: { color: "#fff", fontWeight: "600" },
-  statsSubtitle: { color: "#ccc", fontSize: fontSizes.sm },
-  sectionTitle: { fontSize: fontSizes.lg, fontWeight: "700" },
-  transactionSection: { marginTop: spacing.xxl, paddingHorizontal: spacing.lg, marginBottom: spacing.xxxl },
+  statsSubtitle: { color: "#ccc", fontSize: 12 },
+  transactionSection: { marginTop: 25, paddingHorizontal: 16 },
+  sectionTitle: { fontSize: 17, fontWeight: "700" },
+  listWrapper: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
   fabContainer: {
     position: "absolute",
-    bottom: spacing.xxxl,
-    right: spacing.lg,
+    bottom: 30,
+    right: 20,
   },
   fabMain: {
-    borderRadius: ms(50),
+    borderRadius: 50,
     backgroundColor: "#FFED00",
     justifyContent: "center",
     alignItems: "center",
@@ -458,21 +513,21 @@ const styles = StyleSheet.create({
   },
   assistantCard: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: ms(28),
-    borderTopRightRadius: ms(28),
-    padding: spacing.xxl,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 25,
     alignItems: "center",
   },
   botText: {
-    fontSize: fontSizes.lg,
+    fontSize: 18,
     fontWeight: "700",
     textAlign: "center",
-    marginVertical: spacing.sm,
+    marginVertical: 10,
   },
   transcriptionBox: {
     backgroundColor: "#F1F1F1",
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
+    padding: 15,
+    borderRadius: 12,
     width: "100%",
     marginVertical: spacing.md,
   },
@@ -494,6 +549,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     width: "100%",
     justifyContent: "center",
+
   },
   confirmBtnStyle: {
     backgroundColor: "#4CAF50",
@@ -513,4 +569,10 @@ const styles = StyleSheet.create({
   },
   confirmBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
   cancelBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
+  scrollContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
 });
