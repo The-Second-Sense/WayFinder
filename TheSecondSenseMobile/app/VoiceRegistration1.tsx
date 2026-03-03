@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React from "react";
 import {
     Dimensions,
@@ -67,6 +68,7 @@ function MdiScanHelper() {
 
 export default function InregistrareVoce() {
   const router=useRouter();
+  const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const handlePoateDataViitoare = () => {
     console.log("User chose to skip voice registration");
@@ -74,7 +76,7 @@ export default function InregistrareVoce() {
   };
 
   const handlePermite = () => {
-    router.replace("./VoiceRegistration2");
+    router.replace({ pathname: "./VoiceRegistration2", params: { userId } });
   };
 
   return (

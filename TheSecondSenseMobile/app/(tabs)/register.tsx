@@ -67,7 +67,7 @@ export default function Registration() {
           phone: result.phoneNumber,
         });
         // Registration successful, redirect to voice registration
-        router.replace("/VoiceRegistration1");
+        router.replace({ pathname: "/VoiceRegistration1", params: { userId: result.userId } });
       } else {
         setError("Eroare la înregistrare");
       }

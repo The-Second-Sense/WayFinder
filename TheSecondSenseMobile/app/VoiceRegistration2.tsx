@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { Audio } from "expo-av";
 import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Animated,
     Dimensions,
     StyleSheet,
@@ -157,10 +159,14 @@ async function sendAudioToBackend(
 export default function InregistrareVoce2() {
 
   const router=useRouter();
-  const { user, token } = useAuth();
+  const { userId: userIdParam } = useLocalSearchParams<{ userId: string }>();
+  const { user, token, setVoiceAuthEnabled } = useAuth();
+  // prefer route param (set immediately after register before context update propagates)
+  const resolvedUserId = userIdParam || user?.id || "";
   const [phrase, setPhrase] = useState("");
   const [phraseId, setPhraseId] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -169,7 +175,7 @@ export default function InregistrareVoce2() {
   const recordingRef=React.useRef<Audio.Recording | null>(null);
   
   useEffect(() => {
-    console.log('VoiceRegistration2 - Current user:', user);
+    console.log('VoiceRegistration2 - userId (param):', userIdParam, '/ user?.id:', user?.id, '/ resolved:', resolvedUserId);
     console.log('VoiceRegistration2 - Token:', token);
   }, [user, token]);
 
@@ -271,18 +277,19 @@ export default function InregistrareVoce2() {
                 return;
             }
 
-      //const mockAudioData = "mock_voice_registration_data";
-      //const result = await mockVoiceRegisterAPI(mockAudioData);
+            setIsRecording(false);
+            setIsProcessing(true);
 
-      //const result=await sendAudioToBackend("uri", phraseId);
-      const result = await apiService.registerVoice(user?.id || "", phraseId.toString(), uri);
-      if (result.success) {
-        setIsSuccess(true);
-      } else {
-        setError(result.message || "Înregistrarea a eșuat");
-        setIsSuccess(false);
-      }
-      setIsRecording(false);
+            const result = await apiService.registerVoice(resolvedUserId, phraseId.toString(), uri);
+            setIsProcessing(false);
+
+            if (result.success) {
+              setVoiceAuthEnabled(true);
+              setIsSuccess(true);
+            } else {
+              setError(result.message || "Înregistrarea a eșuat");
+              setIsSuccess(false);
+            }
         }, 3000);
     } catch (err) {
       setError("Eroare de conexiune");
@@ -316,7 +323,7 @@ export default function InregistrareVoce2() {
       <Text style={styles.phraseText}>{phrase}.</Text>
         <GameIconsSoundWaves isAnimating={isRecording} />
       {/* Start Recording Button */}
-      {!isSuccess && (
+      {!isSuccess && !isProcessing && (
         <TouchableOpacity
           style={styles.recordButton}
           onPress={handleStartRecording}
@@ -328,8 +335,18 @@ export default function InregistrareVoce2() {
         </TouchableOpacity>
       )}
 
+      {/* Processing indicator */}
+      {isProcessing && (
+        <View style={styles.processingContainer}>
+          <ActivityIndicator size="large" color="#1a1a1a" />
+          <Text style={styles.processingText}>
+            Se procesează vocea ta...{"\n"}Acest lucru poate dura câteva secunde.
+          </Text>
+        </View>
+      )}
+
       {/* Error Message */}
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && !isProcessing && <Text style={styles.errorText}>{error}</Text>}
 
       {/* Success Message */}
       {isSuccess && (
@@ -466,6 +483,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  processingContainer: {
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 24,
+  },
+  processingText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1a1a1a",
+    textAlign: "center",
+    lineHeight: 24,
   },
   errorText: {
     color: "#dc2626", fontSize: 16, textAlign: "center",

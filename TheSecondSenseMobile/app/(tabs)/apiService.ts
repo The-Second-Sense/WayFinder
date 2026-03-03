@@ -1,4 +1,6 @@
+import { Platform } from 'react-native';
 import { BASE_URL } from './api';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -12,6 +14,16 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface UserDto {
+  userId: string;
+  email?: string;
+  fullName?: string;
+  phoneNumber?: string;
+  isVoiceAuthEnabled?: boolean;
+  createdAt?: string;
+  lastLogin?: string;
+}
+
 export interface LoginResponse {
   token: string;
   user?: {
@@ -19,6 +31,7 @@ export interface LoginResponse {
     name: string;
     email?: string;
     phone?: string;
+    isVoiceAuthEnabled?: boolean;
   };
 }
 
@@ -26,6 +39,12 @@ export interface VoiceRegRequest {
   userId: string;
   phraseId: string;
   audioFile: Blob | { uri: string; name: string; type: string };
+}
+
+export interface ProcessVoiceRequest {
+  userId: string;
+  audioBase64: string;
+  aiMode: "agent" | "guide";
 }
 
 export interface TransactionRequest {
@@ -106,10 +125,11 @@ class ApiService {
       const mappedData: LoginResponse = {
         token: data.accessToken || data.token,
         user: data.user ? {
-          id: data.user.userId,          // userId -> id
-          name: data.user.fullName,      // fullName -> name
+          id: data.user.userId,
+          name: data.user.fullName,
           email: data.user.email,
-          phone: data.user.phoneNumber,  // phoneNumber -> phone
+          phone: data.user.phoneNumber,
+          isVoiceAuthEnabled: data.user.isVoiceAuthEnabled ?? false,
         } : undefined
       };
       
@@ -171,7 +191,7 @@ class ApiService {
     }
   }
 
-  async registerVoice(userId: string, phraseId: string, audioUri: string): Promise<{ success: boolean; message?: string; data?: any }> {
+  async registerVoice(userId: string, phraseId: string, audioUri: string): Promise<{ success: boolean; message?: string; isVoiceAuthEnabled?: boolean; data?: any }> {
     try {
         console.log('Registering voice with:', { userId, phraseId, audioUri });
         
@@ -179,46 +199,61 @@ class ApiService {
           throw new Error('User ID is required for voice registration');
         }
         
-        const formData = new FormData();
-        
-        // Fetch the audio blob from the URI
-        const audioResponse = await fetch(audioUri);
-        const audioBlob = await audioResponse.blob();
-        
-        // Append the audio file to FormData
-        formData.append('audioFile', audioBlob, 'voice.m4a');
-      
-        const url = `${this.baseUrl}/auth/voice-reg?userId=${encodeURIComponent(userId)}&phraseId=${encodeURIComponent(phraseId)}`;
-        
-        console.log('Sending to:', url);
+        const url = `${this.baseUrl}/auth/voice-reg`;
+        console.log('Sending to:', url, 'file:', audioUri);
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            ...(this.token && { Authorization: `Bearer ${this.token}` }),
-          },
-          body: formData,
-        });
+        let responseStatus: number;
+        let responseBody: string;
 
-        console.log('Raw voice registration response:', response);
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          return {
-            success: false,
-            message: errorData?.message || 'Voice registration failed'
-          };
+        if (Platform.OS === 'web') {
+          // On web, audioUri is a blob:// URL — fetch can read it directly
+          const audioBlob = await fetch(audioUri).then(r => r.blob());
+          const formData = new FormData();
+          formData.append('audioFile', audioBlob, 'voice.m4a');
+          // userId and phraseId go ONLY as query params — not in the body too,
+          // otherwise Spring @RequestParam concatenates them and throws "too large"
+          const res = await fetch(
+            `${url}?userId=${encodeURIComponent(userId)}&phraseId=${encodeURIComponent(phraseId)}`,
+            {
+              method: 'POST',
+              headers: { ...(this.token && { Authorization: `Bearer ${this.token}` }) },
+              body: formData,
+            }
+          );
+          responseStatus = res.status;
+          responseBody = await res.text().catch(() => '');
+        } else {
+          // On Android/iOS, audioUri is a file:// path — FileSystem.uploadAsync
+          // reads the file natively (fetch+FormData silently sends empty bytes)
+          const uploadResponse = await FileSystem.uploadAsync(url, audioUri, {
+            httpMethod: 'POST',
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: 'audioFile',
+            mimeType: 'audio/m4a',
+            parameters: { userId, phraseId },
+            headers: { ...(this.token && { Authorization: `Bearer ${this.token}` }) },
+          });
+          responseStatus = uploadResponse.status;
+          responseBody = uploadResponse.body ?? '';
         }
 
-        // Parse successful response
-        const responseData = await response.json().catch(() => ({}));
-        console.log('Response data:', responseData);
+        console.log('Voice reg status:', responseStatus, 'body:', responseBody);
 
-        // If backend returns success explicitly, use it. Otherwise assume success if HTTP 200
+        if (responseStatus < 200 || responseStatus >= 300) {
+          let message = 'Voice registration failed';
+          try { message = JSON.parse(responseBody)?.message || message; } catch {}
+          return { success: false, message };
+        }
+
+        // Backend returns UserDto
+        const userDto: UserDto = JSON.parse(responseBody || '{}');
+        console.log('UserDto response:', userDto);
+
         return {
-          success: responseData?.success !== false,
-          message: responseData?.message || 'Voice registered successfully',
-          data: responseData?.data || responseData
+          success: true,
+          message: 'Voice registered successfully',
+          isVoiceAuthEnabled: userDto?.isVoiceAuthEnabled ?? true,
+          data: userDto
         };
     } catch (error) {
       console.error('Voice registration error:', error);
@@ -226,6 +261,21 @@ class ApiService {
         success: false,
         message: error instanceof Error ? error.message : 'Voice registration failed'
       };
+    }
+  }
+
+  async checkVoiceRegistered(userId: string): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/auth/voice-reg/check?userId=${encodeURIComponent(userId)}`,
+        { method: 'GET', headers: this.getHeaders() }
+      );
+      if (!response.ok) return false;
+      const data = await response.json().catch(() => null);
+      return data?.registered === true || data?.hasVoice === true;
+    } catch (error) {
+      console.error('checkVoiceRegistered error:', error);
+      return false;
     }
   }
 
@@ -443,18 +493,39 @@ class ApiService {
   }
 
   // Voice command endpoints
-  async processVoiceCommand(text: string, sessionId: string): Promise<any> {
+  async processVoiceCommand(userId: string, audioBase64: string, aiMode: "AGENT" | "GUIDE"): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/voice/command`, {
+      const response = await fetch(`${this.baseUrl}/voice/process`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ text, sessionId }),
+        body: JSON.stringify({ userId, audioBase64, aiMode }),
       });
 
       if (!response.ok) {
         throw new Error('Failed to process voice command');
       }
 
+      console.log('Raw voice command response:', response);
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async confirmTransfer(payload: {
+    userId: string;
+    confirmed: boolean;
+    targetAccountNumber?: string;
+    amount?: number;
+    currency?: string;
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/voice/confirm-transfer`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error('Failed to confirm transfer');
       return await response.json();
     } catch (error) {
       throw error;

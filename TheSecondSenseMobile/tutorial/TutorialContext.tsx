@@ -8,10 +8,12 @@ type TutorialContextType = {
   active: boolean;
   steps: TutorialStep[];
   currentStep: TutorialStep | null;
+  currentIndex: number;
   currentTargetLayout: TargetLayout | null;
   startTutorial: (steps: TutorialStep[]) => void;
   stopTutorial: () => void;
-  notifyActionDone: (targetId: string, action: "press" | "input") => void;
+  nextStep: () => void;
+  notifyActionDone: (targetId: string, action?: "press" | "input") => void;
   registerTarget: (targetId: string, measure: () => void) => void;
   setTargetLayout: (targetId: string, layout: LayoutRectangle) => void;
 };
@@ -27,6 +29,14 @@ export const TutorialProvider = ({ children }: { children: React.ReactNode }) =>
   const [layouts, setLayouts] = useState<Record<string, LayoutRectangle>>({});
 
   const targetsRef = useRef<Record<string, () => void>>({});
+
+  // Refs so closures always read the latest values without stale captures
+  const activeRef = useRef(active);
+  const stepsRef = useRef(steps);
+  const currentIndexRef = useRef(currentIndex);
+  activeRef.current = active;
+  stepsRef.current = steps;
+  currentIndexRef.current = currentIndex;
 
   const startTutorial = (steps: TutorialStep[]) => {
     setSteps(steps);
@@ -51,15 +61,24 @@ export const TutorialProvider = ({ children }: { children: React.ReactNode }) =>
       ? { ...layouts[currentStep.targetId], targetId: currentStep.targetId }
       : null;
 
-  const notifyActionDone = (targetId: string, action: "press" | "input") => {
-    if (!currentStep) return;
-    if (currentStep.targetId === targetId && currentStep.action === action) {
-      const next = currentIndex + 1;
-      if (next >= steps.length) {
-        stopTutorial();
-      } else {
-        setCurrentIndex(next);
-      }
+  const nextStep = () => {
+    const next = currentIndexRef.current + 1;
+    if (next >= stepsRef.current.length) {
+      stopTutorial();
+    } else {
+      setCurrentIndex(next);
+      setTimeout(() => {
+        Object.values(targetsRef.current).forEach((m) => m());
+      }, 50);
+    }
+  };
+
+  const notifyActionDone = (targetId: string, _action?: "press" | "input") => {
+    if (!activeRef.current) return;
+    const step = stepsRef.current[currentIndexRef.current];
+    if (!step) return;
+    if (step.targetId === targetId) {
+      nextStep();
     }
   };
 
@@ -77,9 +96,11 @@ export const TutorialProvider = ({ children }: { children: React.ReactNode }) =>
         active,
         steps,
         currentStep,
+        currentIndex,
         currentTargetLayout,
         startTutorial,
         stopTutorial,
+        nextStep,
         notifyActionDone,
         registerTarget,
         setTargetLayout,

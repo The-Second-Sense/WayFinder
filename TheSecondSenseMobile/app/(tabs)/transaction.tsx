@@ -18,6 +18,8 @@ import { useRouter } from "expo-router";
 import { spacing, fontSizes, borderRadius, iconSizes, ms } from "@/constants/responsive";
 import { apiService } from "./apiService";
 import { useAuth } from "../contexts/AuthContext";
+import { TutorialTarget } from "@/tutorial/TutorialTarget";
+import { useTutorial } from "@/tutorial/TutorialContext";
 
 const COLORS = {
   yellowPrimary: "#FFED00",
@@ -30,6 +32,7 @@ const COLORS = {
 
 const TransactionScreen = () => {
   const router = useRouter();
+  const { notifyActionDone } = useTutorial();
   const { user } = useAuth();
   const [recipientType, setRecipientType] = useState<'iban' | 'phone'>('iban');
   const [showContactsModal, setShowContactsModal] = useState(false);
@@ -147,12 +150,13 @@ const TransactionScreen = () => {
             <View style={styles.mainCard} pointerEvents="box-none">
               <Text style={styles.cardTitle}>Detalii Transfer Nou</Text>
 
+              <TutorialTarget targetId="beneficiary-selector">
               <Pressable 
                 style={({ pressed }) => [
                   styles.contactPicker,
                   pressed && styles.contactPickerPressed
                 ]}
-                onPress={fetchContacts}
+                onPress={() => { notifyActionDone("beneficiary-selector", "press"); fetchContacts(); }}
                 disabled={loadingContacts}
               >
                 {loadingContacts ? (
@@ -163,6 +167,7 @@ const TransactionScreen = () => {
                 <Text style={styles.contactPickerText}>Alege din agendă</Text>
                 <ArrowRight size={iconSizes.sm} color={COLORS.textMuted} />
               </Pressable>
+              </TutorialTarget>
 
               <View style={styles.inputWrapper}>
                 <Text style={styles.label}>Destinatar</Text>
@@ -202,12 +207,14 @@ const TransactionScreen = () => {
 
               <View style={styles.inputWrapper}>
                 <Text style={styles.label}>Suma</Text>
+                <TutorialTarget targetId="amount-input">
                 <View style={styles.amountInputContainer}>
                   <TextInput
                     placeholder="0.00"
                     keyboardType="numeric"
                     value={amount}
-                    onChangeText={setAmount}
+                    onChangeText={(v) => setAmount(v)}
+                    onBlur={() => notifyActionDone("amount-input", "input")}
                     style={[
                       styles.modernInput,
                       { flex: 1, fontSize: fontSizes.xxl, fontWeight: "700" },
@@ -215,6 +222,7 @@ const TransactionScreen = () => {
                   />
                   <Text style={styles.currency}>RON</Text>
                 </View>
+                </TutorialTarget>
               </View>
 
               <View style={styles.inputWrapper}>
@@ -229,9 +237,11 @@ const TransactionScreen = () => {
                 />
               </View>
 
+              <TutorialTarget targetId="confirm-button">
               <TouchableOpacity 
                 style={[styles.mainActionBtn, isSubmitting && { opacity: 0.6 }]}
                 onPress={async () => {
+                  notifyActionDone("confirm-button", "press");
                   if (!iban || !amount) {
                     Alert.alert('Eroare', `Te rugăm să completezi ${recipientType === 'iban' ? 'IBAN-ul' : 'numărul de telefon'} și suma`);
                     return;
@@ -270,6 +280,7 @@ const TransactionScreen = () => {
                   {isSubmitting ? "Se procesează..." : "Confirmă Transferul"}
                 </Text>
               </TouchableOpacity>
+              </TutorialTarget>
             </View>
           </View>
         }

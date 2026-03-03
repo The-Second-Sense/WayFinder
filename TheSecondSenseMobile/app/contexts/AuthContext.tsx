@@ -6,6 +6,7 @@ interface User {
   name?: string;
   email?: string;
   phone?: string;
+  isVoiceAuthEnabled?: boolean;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   setToken: (token: string) => void;
   setUser: (user: User) => void;
+  setVoiceAuthEnabled: (enabled: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,7 +49,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (data.user) {
         console.log('Setting user:', data.user);
-        setUserState(data.user);
+        setUserState({
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone,
+          isVoiceAuthEnabled: data.user.isVoiceAuthEnabled ?? false,
+        });
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -76,6 +84,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUserState(newUser);
   };
 
+  const setVoiceAuthEnabled = (enabled: boolean) => {
+    setUserState(prev => prev ? { ...prev, isVoiceAuthEnabled: enabled } : prev);
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -84,6 +96,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     setToken,
     setUser,
+    setVoiceAuthEnabled,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

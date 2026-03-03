@@ -1,30 +1,53 @@
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+﻿import * as Speech from "expo-speech";
+import React, { useEffect } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTutorial } from "./TutorialContext";
 
+const PAD = 10;
+
 export const TutorialOverlay = () => {
-  const { active, currentStep, currentTargetLayout } = useTutorial();
+  const { active, currentStep, currentTargetLayout, currentIndex, steps, stopTutorial } = useTutorial();
 
-  if (!active || !currentStep || !currentTargetLayout) return null;
+  useEffect(() => {
+    if (active && currentStep) {
+      Speech.speak(currentStep.message, { language: "ro-RO", rate: 0.9 });
+    }
+    return () => { Speech.stop(); };
+  }, [active, currentIndex]);
 
-  const { x, y, width, height } = currentTargetLayout;
+  if (!active || !currentStep) return null;
+
+  const hl = currentTargetLayout;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View
-        style={[
-          styles.highlight,
-          {
-            top: y - 6,
-            left: x - 6,
-            width: width + 12,
-            height: height + 12,
-          },
-        ]}
-      />
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
 
-      <View style={styles.popup}>
-        <Text style={styles.popupText}>{currentStep.message}</Text>
+      {/* Highlight ring around the target - touches pass through */}
+      {hl && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.highlight,
+            {
+              top: hl.y - PAD,
+              left: hl.x - PAD,
+              width: hl.width + PAD * 2,
+              height: hl.height + PAD * 2,
+            },
+          ]}
+        />
+      )}
+
+      {/* Step card at the bottom */}
+      <View style={styles.card} pointerEvents="box-none">
+        <Text style={styles.counter}>Pasul {currentIndex + 1} din {steps.length}</Text>
+        <Text style={styles.message}>{currentStep.message}</Text>
+        {hl && (
+          <Text style={styles.hint}>Apasa elementul evidentiat pentru a continua</Text>
+        )}
+        <TouchableOpacity style={styles.stopBtn} onPress={() => { Speech.stop(); stopTutorial(); }}>
+          <Text style={styles.stopBtnText}>Opreste ghidarea</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -34,21 +57,53 @@ const styles = StyleSheet.create({
   highlight: {
     position: "absolute",
     borderWidth: 3,
-    borderColor: "red",
-    borderRadius: 12,
+    borderColor: "#4CAF50",
+    borderRadius: 14,
+    backgroundColor: "rgba(76,175,80,0.12)",
   },
-  popup: {
+  card: {
     position: "absolute",
-    bottom: 40,
-    left: 20,
-    right: 20,
-    backgroundColor: "#000",
-    padding: 16,
-    borderRadius: 12,
+    bottom: 48,
+    left: 16,
+    right: 16,
+    backgroundColor: "#1A1A2E",
+    borderRadius: 18,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 12,
   },
-  popupText: {
-    color: "white",
-    fontSize: 16,
-    textAlign: "center",
+  counter: {
+    color: "#A0A0B0",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  message: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  hint: {
+    color: "#4CAF50",
+    fontSize: 13,
+    fontStyle: "italic",
+    marginBottom: 16,
+  },
+  stopBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#555",
+    alignItems: "center",
+  },
+  stopBtnText: {
+    color: "#A0A0B0",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
