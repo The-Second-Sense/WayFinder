@@ -19,7 +19,7 @@ export function AccountOverview({
   accountType,
   currency,
 }: AccountOverviewProps) {
-  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <View style={styles.card}>
@@ -27,13 +27,13 @@ export function AccountOverview({
         <View style={styles.headerRow}>
           <Text style={styles.accountName}>{accountName}</Text>
           <Pressable
-            onPress={() => setShowAccountNumber(!showAccountNumber)}
+            onPress={() => setShowDetails(!showDetails)}
             style={({ pressed }) => [
               styles.iconButton,
               pressed && { opacity: 0.7 },
             ]}
           >
-            {showAccountNumber ? (
+            {showDetails ? (
               <Eye size={20} color="#1A1A1A" />
             ) : (
               <EyeOff size={20} color="#1A1A1A" />
@@ -41,7 +41,7 @@ export function AccountOverview({
           </Pressable>
         </View>
         <Text style={styles.accountNumberText}>
-          Cont {showAccountNumber ? accountNumber : '•••• •••• ' + accountNumber.slice(-4)}
+          Cont {showDetails ? accountNumber : '•••• •••• ' + accountNumber.slice(-4)}
         </Text>
         {accountType ? (
           <Text style={styles.accountTypeText}>{accountType}</Text>
@@ -52,7 +52,9 @@ export function AccountOverview({
         <View style={styles.balanceContainer}>
           <Text style={styles.label}>Sold Disponibil</Text>
           <Text style={styles.balanceText}>
-            {`${Number(balance).toLocaleString("ro-RO", { minimumFractionDigits: 2 })} ${currency}`}
+            {showDetails
+              ? `${Number(balance).toLocaleString("ro-RO", { minimumFractionDigits: 2 })} ${currency}`
+              : `•••• ${currency}`}
           </Text>
         </View>
       </View>
@@ -114,7 +116,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   balanceText: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#1A1A1A",
   },

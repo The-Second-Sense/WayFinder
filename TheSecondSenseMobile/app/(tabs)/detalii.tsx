@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Switch,
@@ -11,6 +12,8 @@ import Toast from "react-native-toast-message";
 import { spacing, fontSizes, borderRadius, ms } from "@/constants/responsive";
 import { ArrowLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "../contexts/AuthContext";
+import { apiService } from "./apiService";
 
 interface AccountDetailsScreenProps {
   route: any;
@@ -22,26 +25,61 @@ export default function AccountDetailsScreen({
   navigation,
 }: AccountDetailsScreenProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [showFullIBAN, setShowFullIBAN] = useState(false);
   const [isCardLocked, setIsCardLocked] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [onlineBankingEnabled, setOnlineBankingEnabled] = useState(true);
-
-  const accountInfo = {
-    iban: "RO49AAAA1B31007593840000",
-    swift: "AAAAROBB",
-    accountNumber: "1B31007593840000",
-    accountType: "Cont Curent Personal",
+  const [isLoading, setIsLoading] = useState(true);
+  const [accountInfo, setAccountInfo] = useState({
+    iban: "",
+    swift: "",
+    accountNumber: "",
+    accountType: "",
     currency: "RON",
+    balance: 0,
     status: "Activ",
-    openDate: "15 Martie 2020",
-    branch: "Sucursala Centru, București",
-    accountManager: "Elena Popescu",
-    managerPhone: "+40 21 300 1234",
-    holderName: "Alexandru Ionescu",
-    holderCNP: "1234567890123",
-    address: "Str. Victoriei nr. 25, București, Sector 1",
-  };
+    openDate: "",
+    branch: "",
+    accountManager: "",
+    managerPhone: "",
+    holderName: "",
+    holderCNP: "",
+    address: "",
+  });
+
+  useEffect(() => {
+    const fetchAccount = async () => {
+      if (!user?.id) return;
+      try {
+        const accounts = await apiService.getAccountsByUserId(user.id);
+        if (accounts.length > 0) {
+          const acc = accounts[0];
+          setAccountInfo({
+            iban: acc.iban ?? acc.accountNumber ?? "",
+            swift: acc.swift ?? acc.bic ?? "",
+            accountNumber: acc.accountNumber ?? "",
+            accountType: acc.accountType ?? "",
+            currency: acc.currency ?? "RON",
+            balance: acc.balance ?? 0,
+            status: acc.status ?? "Activ",
+            openDate: acc.openDate ?? acc.createdAt ?? "",
+            branch: acc.branch ?? "",
+            accountManager: acc.accountManager ?? "",
+            managerPhone: acc.managerPhone ?? "",
+            holderName: user.name ?? "",
+            holderCNP: acc.holderCNP ?? "",
+            address: acc.address ?? "",
+          });
+        }
+      } catch (e) {
+        console.error('[detalii] fetchAccount error:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAccount();
+  }, [user?.id]);
 
   const cards = [
     {

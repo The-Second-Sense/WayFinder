@@ -284,13 +284,13 @@ export default function DashboardScreen() {
           // If STT is unavailable, bypass transcription and go straight to confirm
           if (!voiceSTTAvailable) {
             setPendingCommand("(comandă vocală)");
-            setBotMessage("Audio capturat. Confirmă să trimit comanda?");
+            setBotMessage("Audio capturat. Confirmi trimiterea comenzii?");
           }
         } else {
           setBotMessage("Nu am putut capta audio. Încearcă din nou.");
         }
       }, 7000);
-    }, 2500);
+    }, 3000);
   };
 
   useEffect(() => {
@@ -301,7 +301,7 @@ export default function DashboardScreen() {
       if (text) {
         setUserTranscription(text);
         setPendingCommand(text);
-        const confirmMsg = `Ai spus: "${text}". Confirmă să execut comanda?`;
+        const confirmMsg = `Ai spus: "${text}". Confirmi execuția comenzii?`;
         setBotMessage(confirmMsg);
         // No Speech.speak here — user confirms/cancels via buttons, not voice
       } else {
@@ -386,14 +386,14 @@ export default function DashboardScreen() {
         
         <View style={styles.topHeader}>
           <View>
-            <Text style={styles.secureText}>🔒 Conexiune securizată</Text>
+            {/* <Text style={styles.secureText}>🔒 Conexiune securizată</Text> */}
             <Text style={styles.greeting}>Bună ziua,</Text>
-            <Text style={[styles.userName, { fontSize: executeMode ? 24 : 18 }]}>
+            <Text style={[styles.userName, { fontSize: fontSizes.xl }]}>
               {user?.name ?? "Utilizator"}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
-            <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+            <Text style={{ color: "#007AFF", fontWeight: "600", fontSize: fontSizes.lg }}>
               {executeMode ? "Mod Execuție" : "Mod Planificare"}
             </Text>
           </TouchableOpacity>
@@ -480,16 +480,15 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* FAB */}
+      </ScrollView>
+
+      {/* FAB - fixed above content */}
       <View style={styles.fabContainer}>
         <TouchableOpacity
-          style={[
-            styles.fabMain,
-            { width: executeMode ? 90 : 60, height: executeMode ? 90 : 60 },
-          ]}
+          style={[styles.fabMain, { width: 70, height: 70 }]}
           onPress={handleVoiceCommandAction}
         >
-          <Mic size={executeMode ? 40 : 28} color="#000" />
+          <Mic size={40} color="#000" />
         </TouchableOpacity>
       </View>
 
@@ -533,22 +532,7 @@ export default function DashboardScreen() {
               </Text>
             )}
 
-            {/* Tap-to-record mic button */}
-            {!pendingCommand && !isProcessingVoice && (
-              <TouchableOpacity
-                onPress={handleMicPress}
-                disabled={isRecording || isListeningForCommand}
-                style={[
-                  styles.recordMicBtn,
-                  (isRecording || isListeningForCommand) && styles.recordMicBtnActive,
-                ]}
-              >
-                <Mic size={32} color={isRecording || isListeningForCommand ? "#FF3B30" : "#000"} />
-                <Text style={styles.recordMicLabel}>
-                  {isRecording || isListeningForCommand ? "Ascult..." : "Apasă să vorbești"}
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* Tap-to-record mic button removed — recording starts automatically after AI speaks */}
 
             {/* Show captured command waiting for confirmation */}
             {pendingCommand && (
@@ -566,60 +550,6 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={cancelAction} style={styles.cancelBtnStyle}>
                   <Text style={styles.cancelBtn}>❌ Anulează</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Post-response buttons — after backend replied */}
-            {backendResponded && !isProcessingVoice && (
-              <View style={styles.confirmBox}>
-                <TouchableOpacity
-                  onPress={async () => {
-                    if (lastVoiceResponse?.pendingConfirmation) {
-                      // Send confirm-transfer to backend
-                      const beneficiary = lastVoiceResponse.matchedBeneficiaries?.[0];
-                      const amount = lastVoiceResponse.extractedEntities?.amount
-                        ?? lastVoiceResponse.extractedEntities?.SUMA;
-                      try {
-                        setIsProcessingVoice(true);
-                        const result = await apiService.confirmTransfer({
-                          userId: user?.id ?? '',
-                          confirmed: true,
-                          targetAccountNumber: beneficiary?.targetAccountNumber,
-                          amount: Number(amount),
-                          currency: 'RON',
-                        });
-                        setBotMessage(result?.message ?? 'Transfer efectuat!');
-                        Speech.speak(result?.message ?? 'Transfer efectuat!', { language: 'ro-RO', rate: 0.9 });
-                      } catch (e) {
-                        setBotMessage('Transferul a eșuat. Încearcă din nou.');
-                      } finally {
-                        setIsProcessingVoice(false);
-                      }
-                    }
-                    setBackendResponded(false);
-                    setLastVoiceResponse(null);
-                    setIsVoiceModalVisible(false);
-                    setBotMessage('Te ascult... Ce operațiune dorești să facem?');
-                  }}
-                  style={styles.confirmBtnStyle}
-                >
-                  <Text style={styles.confirmBtn}>✅ {lastVoiceResponse?.pendingConfirmation ? 'Confirmă' : 'OK'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={async () => {
-                    if (lastVoiceResponse?.pendingConfirmation) {
-                      try {
-                        await apiService.confirmTransfer({ userId: user?.id ?? '', confirmed: false });
-                      } catch (e) {}
-                    }
-                    setBackendResponded(false);
-                    setLastVoiceResponse(null);
-                    handleMicPress();
-                  }}
-                  style={styles.cancelBtnStyle}
-                >
-                  <Text style={styles.cancelBtn}>{lastVoiceResponse?.pendingConfirmation ? '❌ Anulează' : '🎤 Nouă comandă'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -648,7 +578,6 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
-      </ScrollView >
     </SafeAreaView>
   );
 }
@@ -658,7 +587,7 @@ const styles = StyleSheet.create({
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   scrollContent: { paddingBottom: 100 },
   secureText: { fontSize: 12, color: "green", marginBottom: 4 },
-  greeting: { fontSize: 13, color: "#555" },
+  greeting: { fontSize: 14, color: "#555" },
   userName: { fontWeight: "700", color: "#000" },
   topHeader: {
     paddingHorizontal: 20,
@@ -667,22 +596,22 @@ const styles = StyleSheet.create({
   mainCardContainer: { paddingHorizontal: 16 },
   sectionContainer: { marginTop: 15 },
   actionGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginTop: 12,
+     flexDirection: "row",
+    // flexWrap: "wrap",
+     justifyContent: "space-between",
+    // paddingHorizontal: 16,
+    marginTop: 15,
   },
   actionButton: {
-    width: "70%",
-    backgroundColor: "#FFED00",
-    padding: 16,
-    paddingVertical: 18,
-    minHeight: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
+    // width: "70%",
+     backgroundColor: "#FFED00",
+     padding: 10,
+    // paddingVertical: 18,
+    // minHeight: 40,
+     borderRadius: 15,
+     alignItems: "center",
+     justifyContent: "center",
+    // marginBottom: 12,
   },
   actionLabel: { marginTop: 10, fontWeight: "700", fontSize: 16 },
   statsCard: {
