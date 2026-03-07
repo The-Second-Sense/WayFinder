@@ -107,7 +107,7 @@ export function TransactionList({
           </View>
         ) : (
           transactions.map((transaction) =>
-            renderItem({ item: transaction })
+            React.cloneElement(renderItem({ item: transaction }), { key: transaction.id })
           )
         )}
       </View>

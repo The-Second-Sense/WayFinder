@@ -15,7 +15,6 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   NativeModules,
   Platform,
@@ -71,10 +70,12 @@ export default function DashboardScreen() {
 
   const [executeMode, setExecuteMode] = useState(true); // fals pentru plan
   const [backendResponded, setBackendResponded] = useState(false);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
   const [lastVoiceResponse, setLastVoiceResponse] = useState<any>(null); // stores full backend response
 
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
+  const [showVoiceAuthPopup, setShowVoiceAuthPopup] = useState(false);
 
   const [botMessage, setBotMessage] = useState(
     "Te ascult... Ce operațiune dorești să facem?",
@@ -82,6 +83,9 @@ export default function DashboardScreen() {
   const [userTranscription, setUserTranscription] = useState("");
 
   const { startTutorial, notifyActionDone } = useTutorial();
+
+  // Ref so stale closures (onSpeechResults useEffect) always call the latest version
+  const processVoiceCmdRef = useRef<(audio: string, text: string) => Promise<void>>(async () => {});
 
   const fetchData = async () => {
     try {
@@ -154,7 +158,7 @@ export default function DashboardScreen() {
       setLastVoiceResponse(data);
       setPendingCommand("");
       pendingAudioBase64Ref.current = null;
-      console.log('[processVoiceCommand] Backend response:', data);
+      console.log('[processVoiceCommand] Backend response:', JSON.stringify(data));
       if (aiMode === 'GUIDE') {
         console.log('[processVoiceCommand] Entering GUIDE mode with steps:', data.guidanceSteps);
         // — GUIDE mode: speak guidance, start tutorial overlay, navigate, close modal —
@@ -188,22 +192,31 @@ export default function DashboardScreen() {
           setTimeout(() => startTutorial(tutorialSteps), 400);
         }
       } else {
+        console.log('[processVoiceCommand] Entering AGENT mode');
         // — AGENT mode: show message, wait for user to confirm/dismiss —
         const msg = data.message ?? 'Comanda a fost procesată.';
+        console.log('[processVoiceCommand] AGENT mode response:', JSON.stringify(data));
         setBotMessage(msg);
         Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
 
-        if (data.requiresConfirmation) {
-          setPendingAction(data.payload);
+        if (data.pendingConfirmation) {
+          const beneficiary = data.matchedBeneficiaries?.[0];
+          setPendingAction({
+            targetAccountNumber: beneficiary?.targetAccountNumber ?? data.actionData?.targetAccountNumber,
+            amount: data.extractedEntities?.amount ?? data.actionData?.amount,
+            currency: 'RON',
+          });
+          setRequiresConfirmation(true);
         } else {
           setPendingAction(null);
+          setRequiresConfirmation(false);
         }
         setBackendResponded(true); // show OK / Nouă comandă buttons
       }
     } catch (error) {
       console.error('Voice command error:', error);
       setBotMessage('Momentan serviciul nu este disponibil.');
-      Speech.speak('Momentan serviciul nu este disponibil.');
+      Speech.speak('Momentan serviciul nu este disponibil.', { language: 'ro-RO', rate: 0.9 });
       setPendingCommand("");
       pendingAudioBase64Ref.current = null;
       setBackendResponded(true);
@@ -212,12 +225,42 @@ export default function DashboardScreen() {
     }
   };
 
+  processVoiceCmdRef.current = processVoiceCommand;
+
   const confirmAction = async () => {
     const audio = pendingAudioBase64Ref.current;
     const text = pendingCommand;
     if (!audio || !text) return;
     await processVoiceCommand(audio, text);
-    setPendingAction(null);
+    // Do NOT clear pendingAction here — processVoiceCommand sets it when backend requiresConfirmation
+  };
+
+  const executeConfirmedAction = async (confirmed: boolean) => {
+    console.log('[executeConfirmedAction] confirmed:', confirmed, 'pendingAction:', JSON.stringify(pendingAction));
+    setIsProcessingVoice(true);
+    try {
+      const payload = {
+        userId: user?.id ?? '',
+        confirmed,
+        targetAccountNumber: pendingAction?.targetAccountNumber as string | undefined,
+        amount: pendingAction?.amount as number | undefined,
+        currency: (pendingAction?.currency as string | undefined) ?? 'RON',
+      };
+      console.log('[executeConfirmedAction] Payload:', JSON.stringify(payload));
+      const result = await apiService.confirmTransfer(payload);
+      const msg = result?.message ?? (confirmed ? 'Operațiunea a fost efectuată cu succes.' : 'Operațiune anulată.');
+      setBotMessage(msg);
+      Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
+      if (confirmed) fetchData();
+    } catch {
+      const msg = 'A apărut o eroare la procesarea operațiunii.';
+      setBotMessage(msg);
+      Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
+    } finally {
+      setPendingAction(null);
+      setRequiresConfirmation(false);
+      setIsProcessingVoice(false);
+    }
   };
 
   const cancelAction = () => {
@@ -226,6 +269,7 @@ export default function DashboardScreen() {
     pendingAudioBase64Ref.current = null;
     setPendingCommand("");
     setPendingAction(null);
+    setRequiresConfirmation(false);
     setBackendResponded(false);
     setLastVoiceResponse(null);
     setUserTranscription("");
@@ -272,22 +316,24 @@ export default function DashboardScreen() {
         setIsListeningForCommand(false);
         setBotMessage("Se transcrie...");
 
-        // Stop Voice STT — result arrives via onSpeechResults
+        // Stop audio recording first so the ref is set before onSpeechResults fires
+        const audioBase64 = await stopRecording();
+        if (audioBase64) {
+          pendingAudioBase64Ref.current = audioBase64;
+        }
+
+        // Stop Voice STT — result arrives via onSpeechResults (ref is now set)
         if (voiceSTTAvailable) {
           try { await Voice.stop(); } catch (e) {}
         }
 
-        // Stop audio recording and save
-        const audioBase64 = await stopRecording();
-        if (audioBase64) {
-          pendingAudioBase64Ref.current = audioBase64;
-          // If STT is unavailable, bypass transcription and go straight to confirm
-          if (!voiceSTTAvailable) {
-            setPendingCommand("(comandă vocală)");
-            setBotMessage("Audio capturat. Confirmi trimiterea comenzii?");
-          }
-        } else {
+        if (!audioBase64) {
           setBotMessage("Nu am putut capta audio. Încearcă din nou.");
+        } else if (!voiceSTTAvailable) {
+          const cmd = "(comandă vocală)";
+          setPendingCommand(cmd);
+          setBotMessage("Se procesează comanda...");
+          processVoiceCommand(audioBase64, cmd);
         }
       }, 7000);
     }, 3000);
@@ -301,9 +347,13 @@ export default function DashboardScreen() {
       if (text) {
         setUserTranscription(text);
         setPendingCommand(text);
-        const confirmMsg = `Ai spus: "${text}". Confirmi execuția comenzii?`;
-        setBotMessage(confirmMsg);
-        // No Speech.speak here — user confirms/cancels via buttons, not voice
+        const audio = pendingAudioBase64Ref.current;
+        if (audio) {
+          setBotMessage("Se procesează comanda...");
+          processVoiceCmdRef.current(audio, text);
+        } else {
+          setBotMessage(`Ai spus: "${text}", dar nu s-a captat audio. Încearcă din nou.`);
+        }
       } else {
         setBotMessage("Nu am înțeles comanda. Încearcă din nou.");
         pendingAudioBase64Ref.current = null;
@@ -329,12 +379,9 @@ export default function DashboardScreen() {
   );
 
   const handleVoiceCommandAction = () => {
-    if (!user?.id) return;
+    console.log('[handleVoiceCommandAction] user:', JSON.stringify(user));
     if (!user?.isVoiceAuthEnabled) {
-      Alert.alert(
-        "Amprentă Vocală Neînregistrată",
-        "Nu ai o amprentă vocală înregistrată. Înregistrează-ți vocea din setările contului."
-      );
+      setShowVoiceAuthPopup(true);
       return;
     }
     setBackendResponded(false);
@@ -476,10 +523,9 @@ export default function DashboardScreen() {
       <View style={styles.transactionSection}>
         <Text style={styles.sectionTitle}>Activitate Recentă</Text>
         <View style={styles.listWrapper}>
-          <TransactionList transactions={transactions.slice(0, 4)} />
+          <TransactionList transactions={transactions.slice(0, 4)} scrollable={false} />
         </View>
-      </View>
-
+        </View>
       </ScrollView>
 
       {/* FAB - fixed above content */}
@@ -491,6 +537,35 @@ export default function DashboardScreen() {
           <Mic size={40} color="#000" />
         </TouchableOpacity>
       </View>
+
+      {/* Voice Auth Popup */}
+      <Modal visible={showVoiceAuthPopup} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.errorPopupCard}>
+            <Text style={[styles.errorPopupTitle, { color: "#1A1A1A" }]}>🎙 Amprentă Vocală</Text>
+            <Text style={styles.errorPopupMessage}>
+              Nu ai o amprentă vocală înregistrată. Dorești să o înregistrezi acum?
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+              <TouchableOpacity
+                style={[styles.confirmBtnStyle, { backgroundColor: "#999", flex: 1 }]}
+                onPress={() => setShowVoiceAuthPopup(false)}
+              >
+                <Text style={styles.confirmBtn}>Nu, renunț</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtnStyle, { backgroundColor: "#FFED00", flex: 1 }]}
+                onPress={() => {
+                  setShowVoiceAuthPopup(false);
+                  router.push("/VoiceRegistration2");
+                }}
+              >
+                <Text style={[styles.confirmBtn, { color: "#1A1A1A" }]}>Înregistrează</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Error Popup */}
       <Modal visible={!!errorPopup} animationType="fade" transparent>
@@ -532,8 +607,6 @@ export default function DashboardScreen() {
               </Text>
             )}
 
-            {/* Tap-to-record mic button removed — recording starts automatically after AI speaks */}
-
             {/* Show captured command waiting for confirmation */}
             {pendingCommand && (
               <View style={styles.transcriptionBox}>
@@ -542,13 +615,25 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* Confirmation buttons — before sending to backend */}
-            {pendingCommand && !isProcessingVoice && (
+            {/* Confirmation buttons - before sending to backend */}
+            {/* {pendingCommand && !isProcessingVoice && !backendResponded && (
               <View style={styles.confirmBox}>
                 <TouchableOpacity onPress={confirmAction} style={styles.confirmBtnStyle}>
                   <Text style={styles.confirmBtn}>✅ Confirmă</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={cancelAction} style={styles.cancelBtnStyle}>
+                  <Text style={styles.cancelBtn}>❌ Anulează</Text>
+                </TouchableOpacity>
+              </View>
+            )} */}
+
+            {/* Post-backend confirmation - after backend responds with pendingConfirmation */}
+            {backendResponded && requiresConfirmation && !isProcessingVoice && (
+              <View style={styles.confirmBox}>
+                <TouchableOpacity onPress={() => executeConfirmedAction(true)} style={styles.confirmBtnStyle}>
+                  <Text style={styles.confirmBtn}>✅ Confirmă Test</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => executeConfirmedAction(false)} style={styles.cancelBtnStyle}>
                   <Text style={styles.cancelBtn}>❌ Anulează</Text>
                 </TouchableOpacity>
               </View>
@@ -566,6 +651,7 @@ export default function DashboardScreen() {
                 setIsProcessingVoice(false);
                 setPendingCommand("");
                 setPendingAction(null);
+                setRequiresConfirmation(false);
                 setBackendResponded(false);
                 setLastVoiceResponse(null);
                 setUserTranscription("");

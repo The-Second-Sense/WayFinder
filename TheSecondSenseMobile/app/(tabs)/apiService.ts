@@ -505,8 +505,9 @@ class ApiService {
         throw new Error('Failed to process voice command');
       }
 
-      console.log('Raw voice command response:', response);
-      return await response.json();
+      const data = await response.json();
+      console.log('[processVoiceCommand] Raw JSON:', JSON.stringify(data));
+      return data;
     } catch (error) {
       throw error;
     }
@@ -520,6 +521,7 @@ class ApiService {
     currency?: string;
   }): Promise<any> {
     try {
+      console.log('[confirmTransfer] Payload:', JSON.stringify(payload));
       const response = await fetch(`${this.baseUrl}/voice/confirm-transfer`, {
         method: 'POST',
         headers: this.getHeaders(),

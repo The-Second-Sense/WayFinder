@@ -1,5 +1,5 @@
 ﻿import * as Speech from "expo-speech";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTutorial } from "./TutorialContext";
 
@@ -7,6 +7,8 @@ const PAD = 10;
 
 export const TutorialOverlay = () => {
   const { active, currentStep, currentTargetLayout, currentIndex, steps, stopTutorial } = useTutorial();
+  const overlayRef = useRef<View>(null);
+  const [overlayY, setOverlayY] = useState(0);
 
   useEffect(() => {
     if (active && currentStep) {
@@ -15,13 +17,23 @@ export const TutorialOverlay = () => {
     return () => { Speech.stop(); };
   }, [active, currentIndex]);
 
+  const measureOverlay = () => {
+    overlayRef.current?.measureInWindow((_x, y) => {
+      setOverlayY(y);
+    });
+  };
+
   if (!active || !currentStep) return null;
 
   const hl = currentTargetLayout;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-
+    <View
+      ref={overlayRef}
+      style={[StyleSheet.absoluteFill, styles.overlay]}
+      pointerEvents="box-none"
+      onLayout={measureOverlay}
+    >
       {/* Highlight ring around the target - touches pass through */}
       {hl && (
         <View
@@ -29,7 +41,7 @@ export const TutorialOverlay = () => {
           style={[
             styles.highlight,
             {
-              top: hl.y - PAD,
+              top: hl.y - overlayY - PAD,
               left: hl.x - PAD,
               width: hl.width + PAD * 2,
               height: hl.height + PAD * 2,
@@ -54,6 +66,10 @@ export const TutorialOverlay = () => {
 };
 
 const styles = StyleSheet.create({
+  overlay: {
+    zIndex: 9999,
+    elevation: 9999,
+  },
   highlight: {
     position: "absolute",
     borderWidth: 3,
