@@ -313,7 +313,7 @@ export default function DashboardScreen() {
       // 3. Auto-stop after 5 seconds
       recordingTimerRef.current = setTimeout(async () => {
         setIsListeningForCommand(false);
-        setBotMessage("Se transcrie...");
+        setBotMessage("Se proceseaza comanda...");
 
         // Stop audio recording first so the ref is set before onSpeechResults fires
         const audioBase64 = await stopRecording();
@@ -328,7 +328,8 @@ export default function DashboardScreen() {
 
         if (!audioBase64) {
           setBotMessage("Nu am putut capta audio. Încearcă din nou.");
-        } else if (!voiceSTTAvailable) {
+         } 
+        else if (!voiceSTTAvailable) {
           const cmd = "(comandă vocală)";
           setPendingCommand(cmd);
           setBotMessage("Se procesează comanda...");
@@ -636,7 +637,7 @@ export default function DashboardScreen() {
             {backendResponded && requiresConfirmation && !isProcessingVoice && (
               <View style={styles.confirmBox}>
                 <TouchableOpacity onPress={() => executeConfirmedAction(true)} style={styles.confirmBtnStyle}>
-                  <Text style={styles.confirmBtn}>✅ Confirmă Test</Text>
+                  <Text style={styles.confirmBtn}>✅ Confirmă</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => executeConfirmedAction(false)} style={styles.cancelBtnStyle}>
                   <Text style={styles.cancelBtn}>❌ Anulează</Text>

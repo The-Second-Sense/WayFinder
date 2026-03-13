@@ -433,8 +433,39 @@ class ApiService {
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
+      const raw = await response.json();
+      const items = Array.isArray(raw) ? raw : [];
 
-      return await response.json();
+      return items.map((tx: any, index: number) => {
+        const createdAt = tx?.createdAt ? new Date(tx.createdAt) : null;
+        const hasValidDate = !!createdAt && !Number.isNaN(createdAt.getTime());
+        const direction = String(tx?.direction ?? '').toUpperCase();
+        const isCredit = direction === 'RECEIVED' || tx?.type === 'credit';
+        const amount = Number(tx?.amount ?? 0);
+
+        return {
+          id: String(tx?.id ?? tx?.transactionId ?? index),
+          type: isCredit ? 'credit' : 'debit',
+          amount: Number.isFinite(amount) ? amount : 0,
+          description:
+            tx?.description?.trim?.() ||
+            (isCredit ? 'Incasare' : 'Transfer bancar'),
+          receiverName: tx?.receiverName ?? '',
+          category: tx?.category ?? 'transfer',
+          date: hasValidDate
+            ? createdAt.toLocaleDateString('ro-RO', {
+                day: '2-digit',
+                month: 'short',
+              })
+            : '-',
+          time: hasValidDate
+            ? createdAt.toLocaleTimeString('ro-RO', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '-',
+        };
+      });
     } catch (error) {
       throw error;
     }

@@ -15,6 +15,7 @@ export interface Transaction {
   type: "credit" | "debit";
   amount: number;
   description: string;
+  receiverName?: string;
   category: string;
   date: string;
   time: string;
@@ -73,6 +74,9 @@ export function TransactionList({
 
           <View>
             <Text style={styles.description}>{transaction.description}</Text>
+            {!!transaction.receiverName && (
+              <Text style={styles.counterparty}>Beneficiar: {transaction.receiverName}</Text>
+            )}
             <Text style={styles.dateTime}>
               {transaction.date} • {transaction.time}
             </Text>
@@ -197,6 +201,11 @@ const styles = StyleSheet.create({
   dateTime: {
     fontSize: 12,
     color: "rgba(26, 26, 26, 0.6)",
+  },
+  counterparty: {
+    fontSize: 12,
+    color: "rgba(26, 26, 26, 0.7)",
+    marginTop: 2,
   },
   amount: {
     fontSize: 15,
