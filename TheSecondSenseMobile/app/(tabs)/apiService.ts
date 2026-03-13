@@ -279,15 +279,23 @@ class ApiService {
     }
   }
 
-  async logout(): Promise<void> {
+  async logout(token?: string): Promise<string> {
     try {
-      await fetch(`${this.baseUrl}/auth/logout`, {
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      const bearerToken = token || this.token;
+      if (bearerToken) {
+        headers['Authorization'] = `Bearer ${bearerToken}`;
+      }
+      const response = await fetch(`${this.baseUrl}/auth/logout`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers,
       });
+      const message = await response.text();
       this.clearToken();
+      return message;
     } catch (error) {
       console.error('Logout error:', error);
+      throw error;
     }
   }
 

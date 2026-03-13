@@ -14,7 +14,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (phone: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => Promise<string>;
   setToken: (token: string) => void;
   setUser: (user: User) => void;
   setVoiceAuthEnabled: (enabled: boolean) => void;
@@ -65,11 +65,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<string> => {
     try {
-      await apiService.logout();
+      const message = await apiService.logout(token ?? undefined);
+      return message;
     } catch (error) {
       console.error('Logout error:', error);
+      return 'Logout failed';
     } finally {
       setTokenState(null);
       setUserState(null);

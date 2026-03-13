@@ -7,6 +7,7 @@ import Voice from "@react-native-voice/voice";
 import {
   Building,
   CreditCard,
+  LogOut,
   Mic,
   PieChart,
   Receipt,
@@ -15,6 +16,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   NativeModules,
   Platform,
@@ -41,7 +43,12 @@ import { apiService } from "./apiService";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 export default function DashboardScreen() {
-  const { token, user } = useAuth();
+  const { token, user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    router.replace("/(tabs)/login");
+    await logout();
+  };
   const [accountData, setAccountData] = useState<{
     accountId: number | null;
     accountNumber: string;
@@ -160,18 +167,14 @@ export default function DashboardScreen() {
       pendingAudioBase64Ref.current = null;
       console.log('[processVoiceCommand] Backend response:', JSON.stringify(data));
       if (aiMode === 'GUIDE') {
-        console.log('[processVoiceCommand] Entering GUIDE mode with steps:', data.guidanceSteps);
-        // — GUIDE mode: speak guidance, start tutorial overlay, navigate, close modal —
         const tts = data.guidanceMessage ?? data.message ?? 'Urmează pașii afișați.';
         setBotMessage(tts);
         Speech.speak(tts, { language: 'ro-RO', rate: 0.9 });
 
-        // Map GuidanceStep[] → TutorialStep[]
-        // targetId is now used directly from the backend's highlightButtonId
         const rawSteps: any[] = Array.isArray(data.guidanceSteps) ? data.guidanceSteps : [];
         console.log('[GUIDE] raw guidanceSteps:', JSON.stringify(rawSteps, null, 2));
         const tutorialSteps = rawSteps.map((s: any, i: number) => {
-          // Backend GuidanceStep fields: elementId, instruction
+          
           const targetId: string = s.elementId ?? '';
           const message: string = s.instruction ?? `Pasul ${i + 1}`;
           console.log(`[GUIDE] step ${i}: targetId="${targetId}" message="${message}"`);
@@ -192,10 +195,7 @@ export default function DashboardScreen() {
           setTimeout(() => startTutorial(tutorialSteps), 400);
         }
       } else {
-        console.log('[processVoiceCommand] Entering AGENT mode');
-        // — AGENT mode: show message, wait for user to confirm/dismiss —
         const msg = data.message ?? 'Comanda a fost procesată.';
-        console.log('[processVoiceCommand] AGENT mode response:', JSON.stringify(data));
         setBotMessage(msg);
         Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
 
@@ -236,7 +236,6 @@ export default function DashboardScreen() {
   };
 
   const executeConfirmedAction = async (confirmed: boolean) => {
-    console.log('[executeConfirmedAction] confirmed:', confirmed, 'pendingAction:', JSON.stringify(pendingAction));
     setIsProcessingVoice(true);
     try {
       const payload = {
@@ -438,11 +437,17 @@ export default function DashboardScreen() {
             <Text style={[styles.userName, { fontSize: fontSizes.xl }]}>
               {user?.name ?? "Utilizator"}
             </Text>
+            <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
+              <Text style={{ color: "#007AFF", fontWeight: "600", fontSize: fontSizes.lg }}>
+                {executeMode ? "Mod Execuție" : "Mod Planificare"}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
-            <Text style={{ color: "#007AFF", fontWeight: "600", fontSize: fontSizes.lg }}>
-              {executeMode ? "Mod Execuție" : "Mod Planificare"}
-            </Text>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={{ position: "absolute", top: 15, right: 20, padding: spacing.xs }}
+          >
+            <LogOut size={iconSizes.md} color="#FF3B30" />
           </TouchableOpacity>
         </View>
 

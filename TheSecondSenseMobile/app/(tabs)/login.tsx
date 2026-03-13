@@ -62,11 +62,11 @@ export default function LoginPage() {
         </View>
       </View>
 
-      <Text style={styles.welcomeText}>Welcome Back Amalia!</Text>
+      <Text style={styles.welcomeText}>Welcome Back!</Text>
 
       <View style={styles.formContainer}>
         <TextInput
-          placeholder="Telefon (ex: 1234567890)"
+          placeholder="Telefon (ex: +40712345678)"
           value={telefon}
           onChangeText={setTelefon}
           style={styles.input}
@@ -75,7 +75,7 @@ export default function LoginPage() {
         />
 
         <TextInput
-          placeholder="Parolă (ex: test123)"
+          placeholder="Parolă (ex: ParolaMea123!)"
           value={parola}
           onChangeText={setParola}
           style={styles.input}
@@ -90,7 +90,7 @@ export default function LoginPage() {
           <Text style={styles.errorText}>{error}</Text>
         ) : (
           <Text style={styles.demoText}>
-            {`„Demo: telefon „${DEMO_PHONE}” / parolă „${DEMO_PASS}””`}
+            {/* {`„Demo: telefon „${DEMO_PHONE}” / parolă „${DEMO_PASS}””`} */}
           </Text>
         )}
       </View>
@@ -163,6 +163,7 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     marginTop: hp(40),
+    marginBottom: spacing.lg,
     fontSize: fontSizes.xxl,
     fontWeight: "bold",
     color: "#1a1a1a",
