@@ -12,6 +12,7 @@ export interface ApiResponse<T> {
 export interface LoginRequest {
   phone: string;
   password: string;
+  transferPin: string;
 }
 
 export interface UserDto {
@@ -32,6 +33,7 @@ export interface LoginResponse {
     email?: string;
     phone?: string;
     isVoiceAuthEnabled?: boolean;
+    transferPin?: string;
   };
 }
 
@@ -67,6 +69,58 @@ export interface AccountDto {
   createdAt: string;
 }
 
+export interface CardDto {
+  cardId?: number | string;
+  id?: number | string;
+  userId?: string;
+  accountId?: number;
+  cardNumber?: string;
+  maskedCardNumber?: string;
+  last4?: string;
+  cardType?: string;
+  type?: string;
+  network?: string;
+  brand?: string;
+  holderName?: string;
+  cardHolder?: string;
+  isActive?: boolean;
+  status?: string;
+  expiryDate?: string;
+  expiresAt?: string;
+}
+
+export interface ContactLiteDto {
+  name: string;
+  phone: string;
+}
+
+export interface VoiceCandidate {
+  id: string;
+  name: string;
+  accountNumber?: string;
+  phone?: string;
+}
+
+export interface VoiceProcessResponse {
+  status?: 'PENDING_CONFIRMATION' | 'SUCCESS' | 'FAILED';
+  pendingConfirmation?: boolean;
+  pendingOperationId?: string;
+  candidates?: VoiceCandidate[];
+  message?: string;
+  matchedBeneficiaries?: any[];
+  extractedEntities?: {
+    amount?: number;
+    currency?: string;
+    recipientName?: string;
+    beneficiary?: string;
+    description?: string;
+  };
+  guidanceMessage?: string;
+  guidanceSteps?: any[];
+  actionData?: any;
+  navigateToScreen?: string;
+}
+
 class ApiService {
   private baseUrl: string;
   private token: string | null = null;
@@ -99,9 +153,9 @@ class ApiService {
   }
 
   // Authentication endpoints
-  async login(phone: string, password: string): Promise<LoginResponse> {
+  async login(phone: string, password: string, transferPin: string): Promise<LoginResponse> {
     // MOCK LOGIN - bypasses real API
-    //return this.mockLogin(phone, password);
+    //return this.mockLogin(phone, password, transferPin);
     
     // Uncomment below to use real API
     
@@ -109,7 +163,7 @@ class ApiService {
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ phone, password, transferPin }),
       });
 
       if (!response.ok) {
@@ -130,6 +184,7 @@ class ApiService {
           email: data.user.email,
           phone: data.user.phoneNumber,
           isVoiceAuthEnabled: data.user.isVoiceAuthEnabled ?? false,
+          transferPin: data.user.transferPin,
         } : undefined
       };
       
@@ -144,13 +199,13 @@ class ApiService {
   }
 
   // Mock login function for development/testing
-  private async mockLogin(phone: string, password: string): Promise<LoginResponse> {
+  private async mockLogin(phone: string, password: string, transferPin: string): Promise<LoginResponse> {
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
     // Accept any credentials, or specific demo credentials
-    if (!phone || !password) {
-      throw new Error('Phone and password are required');
+    if (!phone || !password || !transferPin) {
+      throw new Error('Phone, password, and transfer PIN are required');
     }
 
     // Create mock response
@@ -161,6 +216,7 @@ class ApiService {
         name: 'Amalia',
         email: 'amalia@wayfinder.com',
         phone: phone,
+        transferPin: transferPin,
       }
     };
 
@@ -400,6 +456,35 @@ class ApiService {
     }
   }
 
+  async getCardsByUserId(userId: string): Promise<CardDto[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cards/user/${userId}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('[getCardsByUserId] Error body:', body);
+        throw new Error('Failed to fetch cards');
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray(data?.cards)) {
+        return data.cards;
+      }
+
+      return [];
+    } catch (error) {
+      console.error('[getCardsByUserId] Network error:', error);
+      throw error;
+    }
+  }
+
   // Mock account function for development/testing
   private async mockGetAccount(): Promise<any> {
     // Simulate network delay
@@ -435,7 +520,13 @@ class ApiService {
       }
       const raw = await response.json();
       const items = Array.isArray(raw) ? raw : [];
-
+      console.log(
+        '[getTransactions] description fields:',
+        items.map((tx: any, index: number) => ({
+          id: tx?.id ?? tx?.transactionId ?? index,
+          description: tx?.description,
+        }))
+      );
       return items.map((tx: any, index: number) => {
         const createdAt = tx?.createdAt ? new Date(tx.createdAt) : null;
         const hasValidDate = !!createdAt && !Number.isNaN(createdAt.getTime());
@@ -447,9 +538,7 @@ class ApiService {
           id: String(tx?.id ?? tx?.transactionId ?? index),
           type: isCredit ? 'credit' : 'debit',
           amount: Number.isFinite(amount) ? amount : 0,
-          description:
-            tx?.description?.trim?.() ||
-            (isCredit ? 'Incasare' : 'Transfer bancar'),
+          description: tx?.description?.trim?.() ?? '',
           receiverName: tx?.receiverName ?? '',
           category: tx?.category ?? 'transfer',
           date: hasValidDate
@@ -532,12 +621,21 @@ class ApiService {
   }
 
   // Voice command endpoints
-  async processVoiceCommand(userId: string, audioBase64: string, aiMode: "AGENT" | "GUIDE"): Promise<any> {
+  async processVoiceCommand(
+    userId: string,
+    audioBase64: string,
+    aiMode: "AGENT" | "GUIDE",
+    contacts?: ContactLiteDto[]
+  ): Promise<VoiceProcessResponse> {
     try {
+      const body: Record<string, unknown> = { userId, audioBase64, aiMode };
+      if (contacts && contacts.length > 0) {
+        body.contacts = contacts;
+      }
       const response = await fetch(`${this.baseUrl}/voice/process`, {
         method: 'POST',
         headers: this.getHeaders(),
-        body: JSON.stringify({ userId, audioBase64, aiMode }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -552,12 +650,27 @@ class ApiService {
     }
   }
 
+  async setTransferPin(userId: string, pin: string): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/auth/set-transfer-pin`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ userId, pin }),
+      });
+      if (!response.ok) throw new Error('Failed to set transfer PIN');
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async confirmTransfer(payload: {
     userId: string;
     confirmed: boolean;
     targetAccountNumber?: string;
     amount?: number;
     currency?: string;
+    transferPin?: string;
   }): Promise<any> {
     try {
       console.log('[confirmTransfer] Payload:', JSON.stringify(payload));
@@ -568,6 +681,36 @@ class ApiService {
       });
       if (!response.ok) throw new Error('Failed to confirm transfer');
       return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async confirmVoiceOp(pendingOperationId: string, selectedCandidateId?: string): Promise<any> {
+    try {
+      const body: Record<string, unknown> = { pendingOperationId };
+      if (selectedCandidateId) body.selectedCandidateId = selectedCandidateId;
+      const response = await fetch(`${this.baseUrl}/voice/confirm`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error('Failed to confirm operation');
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async cancelVoiceOp(pendingOperationId: string): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/voice/cancel`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ pendingOperationId }),
+      });
+      if (!response.ok) throw new Error('Failed to cancel operation');
+      return await response.json().catch(() => null);
     } catch (error) {
       throw error;
     }

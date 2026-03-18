@@ -31,18 +31,32 @@ export default function LoginPage() {
   const { login, isLoading: authLoading } = useAuth();
   const [telefon, setTelefon] = useState("");
   const [parola, setParola] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const DEMO_PHONE = "1234567890";
   const DEMO_PASS = "test123";
 
   const handleLogin = async () => {
     setError("");
+    
+    // Validate PIN
+    if (!pin || pin.length === 0) {
+      setError("PIN-ul este necesar");
+      return;
+    }
+
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      setError("PIN-ul trebuie să fie 4 cifre");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await login(telefon, parola);
+      await login(telefon, parola, pin);
       // Navigăm către Dashboard din folderul (tabs)
       // Folosim replace pentru a nu se mai putea întoarce la Login cu butonul Back
       router.replace("/(tabs)/dashboard");
@@ -79,6 +93,17 @@ export default function LoginPage() {
           value={parola}
           onChangeText={setParola}
           style={styles.input}
+          secureTextEntry={!showPassword}
+          placeholderTextColor="#999"
+        />
+
+        <TextInput
+          placeholder="PIN de Transfer (4 cifre)"
+          value={pin}
+          onChangeText={(text) => setPin(text.replace(/[^0-9]/g, "").slice(0, 4))}
+          style={styles.input}
+          keyboardType="numeric"
+          maxLength={4}
           secureTextEntry
           placeholderTextColor="#999"
         />
@@ -210,6 +235,7 @@ const styles = StyleSheet.create({
     color: "#dc2626",
     fontSize: fontSizes.sm,
     fontWeight: "600",
+    margin: spacing.xs,
   },
   demoText: {
     color: "#6b7280",

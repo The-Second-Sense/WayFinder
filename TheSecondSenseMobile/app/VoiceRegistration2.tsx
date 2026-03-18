@@ -284,8 +284,11 @@ export default function InregistrareVoce2() {
             setIsProcessing(false);
 
             if (result.success) {
+              console.log('[VoiceRegistration2] Voice auth successful, user state before setVoiceAuthEnabled:', JSON.stringify(user));
               setVoiceAuthEnabled(true);
               setIsSuccess(true);
+              console.log('[VoiceRegistration2] About to redirect to dashboard');
+              router.replace("/(tabs)/dashboard");
             } else {
               setError(result.message || "Înregistrarea a eșuat");
               setIsSuccess(false);
@@ -295,11 +298,6 @@ export default function InregistrareVoce2() {
       setError("Eroare de conexiune");
       setIsSuccess(false);
     } 
-  };
-
-  const handleFinalize = () => {
-    //navigation.navigate("Cards");
-    router.replace("/(tabs)/dashboard");
   };
 
   return (
@@ -352,18 +350,8 @@ export default function InregistrareVoce2() {
       {isSuccess && (
         <>
           <Text style={styles.successText}>
-            Vocea a fost înregistrată cu succes
+            Vocea a fost înregistrată cu succes. Continuăm către configurarea PIN-ului.
           </Text>
-
-          {/* Finalize Button */}
-          <TouchableOpacity
-            style={styles.finalizeButton}
-            onPress={handleFinalize}
-          >
-            <Text style={styles.finalizeButtonText}>
-              Finalizează înregistrarea
-            </Text>
-          </TouchableOpacity>
         </>
       )}
       </View>
@@ -517,24 +505,6 @@ const styles = StyleSheet.create({
     // fontWeight: "500",
     // color: "#16a34a",
     // textAlign: "center",
-  },
-  finalizeButton: {
-    backgroundColor: "#1a1a1a", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12,
-    // position: "absolute",
-    // top: 677*scaleY,
-    // left: 93*scaleX,
-    // width: 204*scaleX,
-    // height: 54*scaleY,
-    // backgroundColor: "#1a1a1a",
-    // borderRadius: 10,
-    // justifyContent: "center",
-    // alignItems: "center",
-  },
-  finalizeButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
   },
   footer: {
     paddingBottom: 24, alignItems: "center", gap: 12,

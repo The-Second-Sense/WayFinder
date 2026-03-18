@@ -7,13 +7,14 @@ interface User {
   email?: string;
   phone?: string;
   isVoiceAuthEnabled?: boolean;
+  transferPin?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (phone: string, password: string) => Promise<void>;
+  login: (phone: string, password: string, transferPin: string) => Promise<void>;
   logout: () => Promise<string>;
   setToken: (token: string) => void;
   setUser: (user: User) => void;
@@ -36,10 +37,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [token]);
 
-  const login = async (phone: string, password: string) => {
+  const login = async (phone: string, password: string, transferPin: string) => {
     setIsLoading(true);
     try {
-      const data = await apiService.login(phone, password);
+      const data = await apiService.login(phone, password, transferPin);
       console.log('Login response:', data);
       
       if (data.token) {
@@ -55,6 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: data.user.email,
           phone: data.user.phone,
           isVoiceAuthEnabled: data.user.isVoiceAuthEnabled ?? false,
+          transferPin: data.user.transferPin,
         });
       }
     } catch (error) {

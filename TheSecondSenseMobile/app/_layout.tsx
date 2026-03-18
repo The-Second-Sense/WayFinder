@@ -15,6 +15,9 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)/login" />
             <Stack.Screen name="(tabs)/register" />
             <Stack.Screen name="VoiceAuth" /> {/* VoiceAuth */}
+            <Stack.Screen name="VoiceRegistration1" />
+            <Stack.Screen name="VoiceRegistration2" />
+            <Stack.Screen name="PinRegistration" />
             <Stack.Screen name="(tabs)/dashboard" />
             <Stack.Screen name="(tabs)/transaction" />
             <Stack.Screen name="(tabs)/cards" />

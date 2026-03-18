@@ -31,7 +31,7 @@ function Group() {
 
 export default function Registration() {
   const router = useRouter();
-  const { setUser } = useAuth();
+  const { setUser, setToken } = useAuth();
   const [fullname, setFullname] = useState("");
   const [parola, setParola] = useState("");
   const [telefon, setTelefon] = useState("");
@@ -54,22 +54,25 @@ export default function Registration() {
         email: email,
         password: parola,
         phoneNumber: telefon,
+        transferPin: null, // PIN will be set in the next step
         enableVoiceAuth: true,
       });
 
-      if (result) {
-        // Store user data after registration
-        console.log('Registration successful, user:', result);
+      if (result?.accessToken && result?.user) {
+        // Keep user authenticated after successful registration.
+        setToken(result.accessToken);
         setUser({
-          id: result.userId,
-          name: result.fullName,
-          email: result.email,
-          phone: result.phoneNumber,
+          id: result.user.userId,
+          name: result.user.fullName,
+          email: result.user.email,
+          phone: result.user.phoneNumber,
+          isVoiceAuthEnabled: result.user.isVoiceAuthEnabled ?? false,
         });
-        // Registration successful, redirect to voice registration
-        router.replace({ pathname: "/VoiceRegistration1", params: { userId: result.userId } });
+
+        // Registration successful, redirect to PIN setup (not voice registration yet)
+        router.replace({ pathname: "/PinRegistration", params: { userId: result.user.userId } });
       } else {
-        setError("Eroare la înregistrare");
+        setError(result?.message || "Eroare la înregistrare");
       }
     } catch (err: any) {
       setError(err?.message || "Eroare de conexiune la server");

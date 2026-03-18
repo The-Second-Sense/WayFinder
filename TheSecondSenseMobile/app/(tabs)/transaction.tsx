@@ -45,6 +45,9 @@ const TransactionScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [sourceAccountId, setSourceAccountId] = useState<number | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [transferPin, setTransferPin] = useState("");
+  const [pendingTransfer, setPendingTransfer] = useState<any>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -255,24 +258,16 @@ const TransactionScreen = () => {
                     Alert.alert('Eroare', 'Suma introdusă nu este validă.');
                     return;
                   }
-                  setIsSubmitting(true);
-                  try {
-                    await apiService.sendMoney({
-                      sourceAccountId,
-                      recipientAccountNumber: iban,
-                      amount: parsedAmount,
-                      currency: 'RON',
-                      description: description || undefined,
-                    });
-                    Alert.alert('Succes', 'Transfer realizat cu succes!');
-                    setIban('');
-                    setAmount('');
-                    setDescription('');
-                  } catch (error) {
-                    Alert.alert('Eroare', error instanceof Error ? error.message : 'Transfer-ul a eșuat');
-                  } finally {
-                    setIsSubmitting(false);
-                  }
+                  // Store transfer details and show PIN modal instead of submitting
+                  setPendingTransfer({
+                    sourceAccountId,
+                    recipientAccountNumber: iban,
+                    amount: parsedAmount,
+                    currency: 'RON',
+                    description: description || undefined,
+                  });
+                  setTransferPin("");
+                  setShowPinModal(true);
                 }}
                 disabled={isSubmitting}
               >
@@ -378,6 +373,83 @@ const TransactionScreen = () => {
             />
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* PIN MODAL */}
+      <Modal visible={showPinModal} animationType="fade" transparent>
+        <View style={styles.pinModalOverlay}>
+          <View style={styles.pinModalContainer}>
+            <Text style={styles.pinModalTitle}>PIN de Transfer</Text>
+            <Text style={styles.pinModalSubtitle}>
+              Introdu codul PIN de 4 cifre pentru a confirma transferul
+            </Text>
+
+            <TextInput
+              placeholder="0000"
+              value={transferPin}
+              onChangeText={setTransferPin}
+              keyboardType="numeric"
+              maxLength={4}
+              secureTextEntry
+              style={styles.pinInput}
+              editable={!isSubmitting}
+            />
+
+            <View style={styles.pinModalButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.pinButton,
+                  styles.pinButtonCancel,
+                  isSubmitting && styles.pinButtonDisabled,
+                ]}
+                onPress={() => {
+                  setShowPinModal(false);
+                  setPendingTransfer(null);
+                  setTransferPin("");
+                }}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.pinButtonCancelText}>Anulează</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pinButton,
+                  styles.pinButtonConfirm,
+                  (transferPin.length !== 4 || isSubmitting) && styles.pinButtonDisabled,
+                ]}
+                onPress={async () => {
+                  if (!transferPin || transferPin.length !== 4) {
+                    Alert.alert('Eroare', 'PIN-ul trebuie să aibă 4 cifre');
+                    return;
+                  }
+                  setIsSubmitting(true);
+                  try {
+                    await apiService.sendMoney({
+                      ...pendingTransfer,
+                      transferPin,
+                    });
+                    Alert.alert('Succes', 'Transfer realizat cu succes!');
+                    setIban('');
+                    setAmount('');
+                    setDescription('');
+                    setShowPinModal(false);
+                    setPendingTransfer(null);
+                    setTransferPin("");
+                  } catch (error) {
+                    Alert.alert('Eroare', error instanceof Error ? error.message : 'Transfer-ul a eșuat');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={transferPin.length !== 4 || isSubmitting}
+              >
+                <Text style={styles.pinButtonConfirmText}>
+                  {isSubmitting ? 'Se procesează...' : 'Confirmă'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -634,6 +706,71 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: fontSizes.base,
     color: COLORS.textMuted,
+  },
+  pinModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinModalContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.lg,
+    width: '85%',
+    maxWidth: 400,
+  },
+  pinModalTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    color: COLORS.textMain,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  pinModalSubtitle: {
+    fontSize: fontSizes.sm,
+    color: COLORS.textMuted,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  pinInput: {
+    backgroundColor: COLORS.bgLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    fontSize: fontSizes.base,
+    color: COLORS.textMain,
+    textAlign: 'center',
+    letterSpacing: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  pinModalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  pinButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+  },
+  pinButtonCancel: {
+    backgroundColor: COLORS.bgLight,
+  },
+  pinButtonCancelText: {
+    fontSize: fontSizes.base,
+    fontWeight: '600',
+    color: COLORS.textMain,
+  },
+  pinButtonConfirm: {
+    backgroundColor: COLORS.yellowPrimary,
+  },
+  pinButtonConfirmText: {
+    fontSize: fontSizes.base,
+    fontWeight: '600',
+    color: COLORS.textMain,
+  },
+  pinButtonDisabled: {
+    opacity: 0.5,
   },
 });
 

@@ -72,11 +72,11 @@ export default function InregistrareVoce() {
 
   const handlePoateDataViitoare = () => {
     console.log("User chose to skip voice registration");
-    router.replace("/(tabs)/dashboard");
+    router.replace({ pathname: "/PinRegistration", params: { userId } });
   };
 
   const handlePermite = () => {
-    router.replace({ pathname: "./VoiceRegistration2", params: { userId } });
+    router.replace({ pathname: "/VoiceRegistration2", params: { userId } });
   };
 
   return (

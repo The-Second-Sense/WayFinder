@@ -23,6 +23,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ScrollView,
@@ -39,7 +40,8 @@ import { AccountOverview } from "@/components/AccountOverview";
 import { TransactionList } from "@/components/TransactionList";
 import { QuickActions } from "@/components/QuickActions";
 import { useAuth } from "../contexts/AuthContext";
-import { apiService } from "./apiService";
+import { apiService, ContactLiteDto, VoiceCandidate } from "./apiService";
+import { fetchPhonebookContacts } from "@/hooks/usePhonebookContacts";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 export default function DashboardScreen() {
@@ -68,17 +70,24 @@ export default function DashboardScreen() {
 
   const [voiceSessionId] = useState(Math.random().toString());
   const [pendingAction, setPendingAction] = useState<any>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [transferPin, setTransferPin] = useState('');
   const [pendingCommand, setPendingCommand] = useState<string>(""); // Track the command waiting for confirmation
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [isListeningForCommand, setIsListeningForCommand] = useState(false); // Track if waiting for user to speak
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAudioBase64Ref = useRef<string | null>(null);
+  const latestFetchRequestRef = useRef(0);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   const [executeMode, setExecuteMode] = useState(true); // fals pentru plan
   const [backendResponded, setBackendResponded] = useState(false);
   const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+  const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const [voiceCandidates, setVoiceCandidates] = useState<VoiceCandidate[]>([]);
+  const [showCandidateList, setShowCandidateList] = useState(false);
   const [lastVoiceResponse, setLastVoiceResponse] = useState<any>(null); // stores full backend response
+  const contactsRef = useRef<ContactLiteDto[]>([])
 
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
@@ -95,6 +104,7 @@ export default function DashboardScreen() {
   const processVoiceCmdRef = useRef<(audio: string, text: string) => Promise<void>>(async () => {});
 
   const fetchData = async () => {
+    const requestId = ++latestFetchRequestRef.current;
     try {
       setIsLoading(true);
 
@@ -119,6 +129,10 @@ export default function DashboardScreen() {
         console.error('[fetchData] Transactions fetch failed:', txErr);
       }
 
+      if (requestId !== latestFetchRequestRef.current) {
+        return;
+      }
+
       if (accountsData.length > 0) {
         const acc = accountsData[0];
         setAccountData({
@@ -134,7 +148,9 @@ export default function DashboardScreen() {
 
       setTransactions(transactionsData);
     } finally {
-      setIsLoading(false);
+      if (requestId === latestFetchRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -160,7 +176,8 @@ export default function DashboardScreen() {
       setIsProcessingVoice(true);
       const aiMode = executeMode ? 'AGENT' : 'GUIDE';
 
-      const data = await apiService.processVoiceCommand(user?.id ?? '', audioBase64, aiMode);
+      const contacts = aiMode === 'AGENT' ? contactsRef.current : undefined;
+      const data = await apiService.processVoiceCommand(user?.id ?? '', audioBase64, aiMode, contacts);
 
       setLastVoiceResponse(data);
       setPendingCommand("");
@@ -195,21 +212,54 @@ export default function DashboardScreen() {
           setTimeout(() => startTutorial(tutorialSteps), 400);
         }
       } else {
-        const msg = data.message ?? 'Comanda a fost procesată.';
-        setBotMessage(msg);
-        Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
-
-        if (data.pendingConfirmation) {
+        if (data.pendingConfirmation || data.status === 'PENDING_CONFIRMATION') {
           const beneficiary = data.matchedBeneficiaries?.[0];
+          const amount = data.extractedEntities?.amount ?? data.actionData?.amount;
+          const currency = data.extractedEntities?.currency ?? 'RON';
+          const recipientName =
+            beneficiary?.name ??
+            beneficiary?.nickname ??
+            beneficiary?.officialName ??
+            data.extractedEntities?.recipientName ??
+            data.extractedEntities?.beneficiary;
+          const description = data.extractedEntities?.description ?? data.actionData?.description;
+
+          setPendingOperationId(data.pendingOperationId ?? null);
           setPendingAction({
             targetAccountNumber: beneficiary?.targetAccountNumber ?? data.actionData?.targetAccountNumber,
-            amount: data.extractedEntities?.amount ?? data.actionData?.amount,
-            currency: 'RON',
+            amount,
+            currency,
+            recipientName,
+            description,
           });
           setRequiresConfirmation(true);
+
+          let msg: string;
+          if (data.candidates && data.candidates.length > 1) {
+            setVoiceCandidates(data.candidates);
+            setShowCandidateList(true);
+            msg = 'Am găsit mai mulți destinatari. Te rugăm să alegi unul.';
+          } else {
+            const normalizedDescription = description?.trim();
+            if (amount != null && recipientName) {
+              msg = normalizedDescription
+                ? `Am înțeles: transfer ${amount} ${currency} către ${recipientName}, cu descrierea "${normalizedDescription}". Confirmi?`
+                : `Am înțeles: transfer ${amount} ${currency} către ${recipientName}. Confirmi?`;
+            } else {
+              const baseMessage = data.message ?? 'Confirmați operațiunea?';
+              msg = normalizedDescription
+                ? `${baseMessage} Descriere: "${normalizedDescription}".`
+                : baseMessage;
+            }
+          }
+          setBotMessage(msg);
+          Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
         } else {
           setPendingAction(null);
           setRequiresConfirmation(false);
+          const msg = data.message ?? 'Comanda a fost procesată.';
+          setBotMessage(msg);
+          Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
         }
         setBackendResponded(true); // show OK / Nouă comandă buttons
       }
@@ -235,31 +285,96 @@ export default function DashboardScreen() {
     // Do NOT clear pendingAction here — processVoiceCommand sets it when backend requiresConfirmation
   };
 
-  const executeConfirmedAction = async (confirmed: boolean) => {
-    setIsProcessingVoice(true);
-    try {
-      const payload = {
-        userId: user?.id ?? '',
-        confirmed,
-        targetAccountNumber: pendingAction?.targetAccountNumber as string | undefined,
-        amount: pendingAction?.amount as number | undefined,
-        currency: (pendingAction?.currency as string | undefined) ?? 'RON',
-      };
-      console.log('[executeConfirmedAction] Payload:', JSON.stringify(payload));
-      const result = await apiService.confirmTransfer(payload);
-      const msg = result?.message ?? (confirmed ? 'Operațiunea a fost efectuată cu succes.' : 'Operațiune anulată.');
+  const executeConfirmedAction = async (confirmed: boolean, selectedCandidateId?: string) => {
+    if (!confirmed) {
+      // User rejected transfer
+      if (pendingOperationId) {
+        await apiService.cancelVoiceOp(pendingOperationId).catch(() => {});
+      }
+      const msg = 'Operațiune anulată.';
       setBotMessage(msg);
       Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
-      if (confirmed) fetchData();
-    } catch {
-      const msg = 'A apărut o eroare la procesarea operațiunii.';
-      setBotMessage(msg);
-      Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
-    } finally {
       setPendingAction(null);
+      setPendingOperationId(null);
+      setVoiceCandidates([]);
+      setShowCandidateList(false);
       setRequiresConfirmation(false);
       setIsProcessingVoice(false);
+      return;
     }
+
+    // User confirmed — request PIN
+    setShowPinModal(true);
+  };
+
+  const handlePinConfirm = async () => {
+    if (transferPin.length !== 4 || !/^\d{4}$/.test(transferPin)) {
+      Alert.alert('Eroare', 'PIN-ul trebuie să aibă exact 4 cifre');
+      return;
+    }
+
+    setIsProcessingVoice(true);
+    setShowPinModal(false);
+    try {
+      let result: any;
+      if (pendingOperationId) {
+        result = await apiService.confirmVoiceOp(pendingOperationId);
+      } else {
+        const payload = {
+          userId: user?.id ?? '',
+          confirmed: true,
+          targetAccountNumber: pendingAction?.targetAccountNumber as string | undefined,
+          amount: pendingAction?.amount as number | undefined,
+          currency: (pendingAction?.currency as string | undefined) ?? 'RON',
+          description: pendingAction?.description as string | undefined,
+          transferPin,
+        };
+        console.log('[executeConfirmedAction] Payload with PIN:', JSON.stringify(payload));
+        result = await apiService.confirmTransfer(payload);
+      }
+
+      console.log('[executeConfirmedAction] Full response:', JSON.stringify(result));
+      
+      // Extract all response fields
+      const msg = result?.actionConfirmation ?? result?.message ?? 'Operațiunea a fost efectuată cu succes.';
+      const transactionId = result?.transactionId;
+      const actionPerformed = result?.actionPerformed ?? false;
+      
+      console.log('[executeConfirmedAction] Extracted - message:', msg, 'transactionId:', transactionId, 'actionPerformed:', actionPerformed);
+      
+      setBotMessage(msg);
+      Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
+      await fetchData();
+    } catch (error: any) {
+      let errorMsg = 'A apărut o eroare la procesarea operațiunii.';
+      if (error?.message?.includes('PIN')) {
+        errorMsg = 'PIN incorect. Încearcă din nou.';
+        setTransferPin('');
+      }
+      setBotMessage(errorMsg);
+      Speech.speak(errorMsg, { language: 'ro-RO', rate: 0.9 });
+    } finally {
+      setPendingAction(null);
+      setPendingOperationId(null);
+      setVoiceCandidates([]);
+      setShowCandidateList(false);
+      setRequiresConfirmation(false);
+      setIsProcessingVoice(false);
+      setTransferPin('');
+    }
+  };
+
+  const handlePinCancel = () => {
+    setShowPinModal(false);
+    setTransferPin('');
+    setBotMessage('Transfer anulat.');
+    Speech.speak('Transfer anulat.', { language: 'ro-RO', rate: 0.9 });
+    setPendingAction(null);
+    setPendingOperationId(null);
+    setVoiceCandidates([]);
+    setShowCandidateList(false);
+    setRequiresConfirmation(false);
+    setIsProcessingVoice(false);
   };
 
   const cancelAction = () => {
@@ -268,6 +383,9 @@ export default function DashboardScreen() {
     pendingAudioBase64Ref.current = null;
     setPendingCommand("");
     setPendingAction(null);
+    setPendingOperationId(null);
+    setVoiceCandidates([]);
+    setShowCandidateList(false);
     setRequiresConfirmation(false);
     setBackendResponded(false);
     setLastVoiceResponse(null);
@@ -368,6 +486,17 @@ export default function DashboardScreen() {
     };
   }, []);
 
+  // Guard: redirect to PIN setup if user doesn't have transferPin set
+  useEffect(() => {
+    console.log('[Dashboard] Guard check - user:', JSON.stringify(user));
+    if (user?.id && !user?.transferPin) {
+      console.log('[Dashboard] No transferPin detected, redirecting to PIN setup');
+      router.replace({ pathname: "/PinRegistration", params: { userId: user.id } });
+    } else {
+      console.log('[Dashboard] transferPin check passed, user can access dashboard');
+    }
+  }, [user?.id, user?.transferPin]);
+
   useEffect(() => {
     fetchData();
   }, [user?.id]);
@@ -378,11 +507,15 @@ export default function DashboardScreen() {
     }, [user?.id])
   );
 
-  const handleVoiceCommandAction = () => {
+  const handleVoiceCommandAction = async () => {
     console.log('[handleVoiceCommandAction] user:', JSON.stringify(user));
     if (!user?.isVoiceAuthEnabled) {
       setShowVoiceAuthPopup(true);
       return;
+    }
+    // Lazy-load device contacts once per session for voice transfer resolution
+    if (contactsRef.current.length === 0) {
+      contactsRef.current = await fetchPhonebookContacts();
     }
     setBackendResponded(false);
     setIsVoiceModalVisible(true);
@@ -614,12 +747,12 @@ export default function DashboardScreen() {
             )}
 
             {/* Show captured command waiting for confirmation */}
-            {pendingCommand && (
+            {/* {pendingCommand && (
               <View style={styles.transcriptionBox}>
                 <Text style={styles.transcriptionLabel}>Comanda captată:</Text>
                 <Text style={styles.transcriptionText}>{pendingCommand}</Text>
               </View>
-            )}
+            )} */}
 
             {/* Confirmation buttons - before sending to backend */}
             {/* {pendingCommand && !isProcessingVoice && !backendResponded && (
@@ -633,8 +766,36 @@ export default function DashboardScreen() {
               </View>
             )} */}
 
+            {/* Multi-match candidate selection */}
+            {showCandidateList && voiceCandidates.length > 1 && !isProcessingVoice && (
+              <View style={styles.candidateList}>
+                <Text style={styles.candidateTitle}>Alege destinatarul:</Text>
+                {voiceCandidates.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={styles.candidateItem}
+                    onPress={() => {
+                      setShowCandidateList(false);
+                      executeConfirmedAction(true, c.id);
+                    }}
+                  >
+                    <Text style={styles.candidateItemText}>{c.name}</Text>
+                    {c.accountNumber && (
+                      <Text style={styles.candidateSubText}>{c.accountNumber}</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.cancelBtnStyle, { marginTop: spacing.md, alignSelf: 'center' }]}
+                  onPress={() => executeConfirmedAction(false)}
+                >
+                  <Text style={styles.cancelBtn}>❌ Anulează</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Post-backend confirmation - after backend responds with pendingConfirmation */}
-            {backendResponded && requiresConfirmation && !isProcessingVoice && (
+            {backendResponded && requiresConfirmation && !isProcessingVoice && !showCandidateList && (
               <View style={styles.confirmBox}>
                 <TouchableOpacity onPress={() => executeConfirmedAction(true)} style={styles.confirmBtnStyle}>
                   <Text style={styles.confirmBtn}>✅ Confirmă</Text>
@@ -644,6 +805,56 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* PIN Input Modal */}
+            <Modal visible={showPinModal} animationType="fade" transparent>
+              <View style={styles.pinModalOverlay}>
+                <View style={styles.pinModalContainer}>
+                  <Text style={styles.pinModalTitle}>PIN de Transfer</Text>
+                  <Text style={styles.pinModalSubtitle}>
+                    Introdu codul PIN de 4 cifre pentru a confirma transferul
+                  </Text>
+
+                  <TextInput
+                    placeholder="0000"
+                    value={transferPin}
+                    onChangeText={setTransferPin}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    secureTextEntry
+                    style={styles.pinInput}
+                    editable={!isProcessingVoice}
+                  />
+
+                  <View style={styles.pinModalButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pinButton,
+                        styles.pinButtonCancel,
+                        isProcessingVoice && styles.pinButtonDisabled,
+                      ]}
+                      onPress={handlePinCancel}
+                      disabled={isProcessingVoice}
+                    >
+                      <Text style={styles.pinButtonCancelText}>Anulează</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.pinButton,
+                        styles.pinButtonConfirm,
+                        (transferPin.length !== 4 || isProcessingVoice) && styles.pinButtonDisabled,
+                      ]}
+                      onPress={handlePinConfirm}
+                      disabled={transferPin.length !== 4 || isProcessingVoice}
+                    >
+                      <Text style={styles.pinButtonConfirmText}>
+                        {isProcessingVoice ? 'Se procesează...' : 'Confirmă'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
 
             {/* Close button */}
             <TouchableOpacity
@@ -657,6 +868,9 @@ export default function DashboardScreen() {
                 setIsProcessingVoice(false);
                 setPendingCommand("");
                 setPendingAction(null);
+                setPendingOperationId(null);
+                setVoiceCandidates([]);
+                setShowCandidateList(false);
                 setRequiresConfirmation(false);
                 setBackendResponded(false);
                 setLastVoiceResponse(null);
@@ -806,6 +1020,35 @@ const styles = StyleSheet.create({
   },
   confirmBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
   cancelBtn: { color: "#fff", fontWeight: "700", fontSize: fontSizes.base },
+  candidateList: {
+    width: '100%',
+    marginTop: spacing.md,
+  },
+  candidateTitle: {
+    fontSize: fontSizes.base,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  candidateItem: {
+    backgroundColor: '#F5F5F5',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  candidateItemText: {
+    fontWeight: '600',
+    fontSize: fontSizes.base,
+    color: '#1A1A1A',
+  },
+  candidateSubText: {
+    color: '#666',
+    fontSize: fontSizes.sm,
+    marginTop: 2,
+  },
   recordMicBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -870,5 +1113,81 @@ const styles = StyleSheet.create({
     color: "#333",
     textAlign: "center",
     lineHeight: 22,
+  },
+  pinModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  pinModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    width: '90%',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  pinModalTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  pinModalSubtitle: {
+    fontSize: fontSizes.base,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  pinInput: {
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSizes.xl,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 8,
+    marginBottom: spacing.lg,
+    width: '100%',
+    color: '#1A1A1A',
+  },
+  pinModalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    width: '100%',
+  },
+  pinButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinButtonCancel: {
+    backgroundColor: '#F0F0F0',
+  },
+  pinButtonCancelText: {
+    color: '#1A1A1A',
+    fontWeight: '600',
+    fontSize: fontSizes.base,
+  },
+  pinButtonConfirm: {
+    backgroundColor: '#FFED00',
+  },
+  pinButtonConfirmText: {
+    color: '#1A1A1A',
+    fontWeight: '700',
+    fontSize: fontSizes.base,
+  },
+  pinButtonDisabled: {
+    opacity: 0.5,
   },
 });

@@ -72,8 +72,10 @@ export function TransactionList({
             )}
           </View>
 
-          <View>
-            <Text style={styles.description}>{transaction.description}</Text>
+          <View style={styles.textContainer}>
+            <Text style={styles.description}>
+              {transaction.description}
+            </Text>
             {!!transaction.receiverName && (
               <Text style={styles.counterparty}>Beneficiar: {transaction.receiverName}</Text>
             )}
@@ -182,9 +184,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f9f9f9",
   },
   leftSection: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  textContainer: {
+    flex: 1,
+    minWidth: 0,
   },
   iconContainer: {
     width: 40,
@@ -208,6 +216,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   amount: {
+    marginLeft: 12,
     fontSize: 15,
     fontWeight: "bold",
   },
