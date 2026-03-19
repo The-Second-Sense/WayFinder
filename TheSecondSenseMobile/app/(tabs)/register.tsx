@@ -159,11 +159,19 @@ export default function Registration() {
 
         <View style={styles.messageArea}>
           {error ? (
-            <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.errorContainer}>
+              {error.split(',').map((err, index) => (
+                <Text key={index} style={styles.errorText}>
+                  • {err.trim()}
+                </Text>
+              ))}
+            </View>
           ) : (
-            <Text style={styles.demoText}>
-              Toate câmpurile cu * sunt obligatorii
-            </Text>
+            <View style={styles.infoContainer}>
+              <Text style={styles.demoText}>
+                Toate câmpurile cu <Text style={{color: '#e74c3c'}}>*</Text> sunt obligatorii
+              </Text>
+            </View>
           )}
         </View>
 
@@ -315,5 +323,19 @@ const styles = StyleSheet.create({
     height: ms(5),
     backgroundColor: "#C2C2C2",
     borderRadius: ms(5),
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2', // Roșu foarte deschis
+    borderColor: '#EF4444',     // Roșu aprins pentru bordură
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoContainer: {
+    backgroundColor: '#F3F4F6', // Gri deschis neutru
+    padding: 8,
+    borderRadius: 8,
   },
 });

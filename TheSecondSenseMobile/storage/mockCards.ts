@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { generateIban, MockCard } from "@/types/cards";
+import { generateCvv, generateIban, MockCard } from "@/types/cards";
 
 const STORAGE_KEY = "mock_cards_v1";
 
@@ -14,6 +14,7 @@ export async function loadMockCards(): Promise<MockCard[]> {
       cardType: "DEBIT" as const,
       cardFormat: "FIZIC" as const,
       iban: generateIban(),
+      cvv: generateCvv(),
       ...card,
     }));
   } catch {
