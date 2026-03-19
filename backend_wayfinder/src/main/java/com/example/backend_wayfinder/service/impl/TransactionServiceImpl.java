@@ -42,6 +42,12 @@ public class TransactionServiceImpl implements TransactionService {
         log.info("Creating transaction from account ID: {} to account: {}",
                 request.getSourceAccountId(), request.getDestinationAccountNumber());
 
+        // ✅ VALIDATE AMOUNT FIRST - before any other operations
+        if (request.getAmount() == null) {
+            log.error("Transaction amount is null - cannot process transaction");
+            throw new IllegalArgumentException("Transaction amount is required and cannot be null");
+        }
+
         if (request.getCurrency() == null || request.getCurrency().isEmpty()) {
             request.setCurrency("RON");
         }
@@ -226,6 +232,12 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private TransactionDto convertToDto(TransactionEntity transaction, String direction) {
+        String receiverName = accountRepository.findByAccountNumber(transaction.getDestinationAccountNumber())
+                .map(a -> a.getUser().getFullName())
+                .orElse(null);
+
+        String senderName = transaction.getSourceAccount().getUser().getFullName();
+
         return TransactionDto.builder()
                 .id(transaction.getId())
                 .sourceAccountId(transaction.getSourceAccount().getAccountId())
@@ -236,6 +248,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .status(transaction.getStatus())
                 .createdAt(transaction.getCreatedAt())
                 .direction(direction)
+                .receiverName(receiverName)
                 .build();
     }
 }

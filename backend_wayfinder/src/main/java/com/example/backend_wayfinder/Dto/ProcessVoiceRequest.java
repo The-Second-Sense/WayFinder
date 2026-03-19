@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,5 +32,12 @@ public class ProcessVoiceRequest {
 
     @NotNull(message = "AI mode is required")
     private AiMode aiMode;  // GUIDE or AGENT
+
+    /**
+     * Optional: user's phonebook contacts sent from frontend.
+     * Used for voice beneficiary resolution. Never persisted — cached for 15 min max.
+     * Max 2000 entries enforced server-side.
+     */
+    private List<ContactLiteDto> contacts;
 }
 

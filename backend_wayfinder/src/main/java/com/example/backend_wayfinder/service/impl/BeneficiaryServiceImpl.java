@@ -150,6 +150,12 @@ public class BeneficiaryServiceImpl implements BeneficiaryService {
                 .orElse(false);
     }
 
+    @Override
+    public List<BeneficiaryDto> searchBeneficiaries(UUID userId, String searchTerm) {
+        return beneficiaryRepository.searchBeneficiaries(userId, searchTerm)
+                .stream().map(this::convertToDto).collect(Collectors.toList());
+    }
+
     // Helper method
     private BeneficiaryDto convertToDto(BeneficiaryEntity beneficiary) {
         return BeneficiaryDto.builder()

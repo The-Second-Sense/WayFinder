@@ -37,19 +37,25 @@ public class AuthenticationController {
      * POST /api/auth/register
      */
     @PostMapping("/register")
-    public ResponseEntity<UserDto> register(@Valid @RequestBody CreateUserRequest request) {
+    public ResponseEntity<AuthenticationResponse> register(@Valid @RequestBody CreateUserRequest request) {
         log.info("Registration request for email: {}", request.getEmail());
 
         try {
-            UserDto user = userService.createUser(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(user);
+            AuthenticationResponse response = authenticationService.register(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
             log.error("Registration failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(UserDto.builder().build());
+            return ResponseEntity.badRequest().body(AuthenticationResponse.builder()
+                    .success(false)
+                    .message(e.getMessage())
+                    .build());
         } catch (Exception e) {
             log.error("Registration failed unexpectedly: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(UserDto.builder().build());
+                    .body(AuthenticationResponse.builder()
+                            .success(false)
+                            .message("Registration failed")
+                            .build());
         }
     }
 
@@ -331,5 +337,51 @@ public class AuthenticationController {
 //            return ResponseEntity.badRequest().body("Password change failed: " + e.getMessage());
 //        }
 //    }
+
+    /**
+     * Set transfer PIN for a user
+     * POST /api/auth/set-transfer-pin
+     */
+    @PostMapping("/set-transfer-pin")
+    public ResponseEntity<Map<String, Object>> setTransferPin(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, String> request) {
+
+        String userIdStr = request.get("userId");
+        String pin = request.get("pin");
+
+        log.info("Transfer PIN setup request for user: {}", userIdStr);
+
+        if (userIdStr == null || userIdStr.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "User ID required"));
+        }
+
+        if (pin == null || pin.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "PIN required"));
+        }
+
+        if (!pin.matches("\\d{4}")) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "PIN must be exactly 4 digits"));
+        }
+
+        try {
+            UUID userId = UUID.fromString(userIdStr);
+            UserEntity user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            user.setTransferPin(pin);
+            userRepository.save(user);
+
+            log.info("Transfer PIN set successfully for user {}", userId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Transfer PIN set successfully"));
+
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid user ID format: {}", userIdStr);
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Invalid user ID format"));
+        } catch (Exception e) {
+            log.error("Failed to set transfer PIN: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
 }
 

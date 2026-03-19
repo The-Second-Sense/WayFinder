@@ -21,7 +21,8 @@ public class TransactionDto {
     private String description;
     private String status;
     private LocalDateTime createdAt;
-    /** "SENT" or "RECEIVED" — populated relative to the requesting user */
     private String direction;
+    /** Full name of the receiver (looked up from the destination account) */
+    private String receiverName;
 }
 

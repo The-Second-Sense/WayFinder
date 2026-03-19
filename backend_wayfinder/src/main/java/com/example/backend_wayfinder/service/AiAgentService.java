@@ -3,6 +3,7 @@ package com.example.backend_wayfinder.service;
 import java.util.UUID;
 
 import com.example.backend_wayfinder.Dto.AiInteractionLogDto;
+import com.example.backend_wayfinder.Dto.ContactLiteDto;
 import com.example.backend_wayfinder.Dto.VoiceCommandRequest;
 import com.example.backend_wayfinder.Dto.VoiceCommandResponse;
 import com.example.backend_wayfinder.enums.Intent;
@@ -31,7 +32,7 @@ public interface AiAgentService {
     /**
      * Execute action based on intent (AGENT mode)
      */
-    VoiceCommandResponse executeAction(UUID userId, Intent intent, String voiceTranscript, List<Double> voiceFingerprint);
+    VoiceCommandResponse executeAction(UUID userId, Intent intent, String voiceTranscript, List<Double> voiceFingerprint, List<ContactLiteDto> contacts);
 
     /**
      * Get AI interaction history for a user

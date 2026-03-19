@@ -48,6 +48,9 @@ public class UserEntity {
     @Type(value = VectorType.class)
     private ArrayList<Double> voiceFingerprint;
 
+    @Column(name = "transfer_pin", length = 4)
+    private String transferPin;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

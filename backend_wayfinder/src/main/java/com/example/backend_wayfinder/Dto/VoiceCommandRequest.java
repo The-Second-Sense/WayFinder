@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -32,5 +33,12 @@ public class VoiceCommandRequest {
 
     // Optional: Raw audio bytes if processing is needed
     private byte[] audioData;
+
+    // Pre-computed intent & entities from the security agent (avoids a second model call)
+    private String precomputedIntent;
+    private Map<String, Object> precomputedEntities;
+
+    // Optional: phonebook contacts from frontend for beneficiary resolution
+    private List<ContactLiteDto> contacts;
 }
 

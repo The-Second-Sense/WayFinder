@@ -2,6 +2,7 @@ package com.example.backend_wayfinder.service.impl;
 
 import com.example.backend_wayfinder.service.VoiceAuthenticationService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.List;
 public class VoiceAuthenticationServiceImpl implements VoiceAuthenticationService {
 
     private static final double SIMILARITY_THRESHOLD = 0.85;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     public boolean verifyVoice(List<Double> currentFingerprint, List<Double> referenceFingerprint) {
@@ -47,6 +49,16 @@ public class VoiceAuthenticationServiceImpl implements VoiceAuthenticationServic
         return cosineSimilarity(currentFingerprint, referenceFingerprint);
     }
 
+    @Override
+    public boolean validatePin(com.example.backend_wayfinder.entities.UserEntity user, String pin) {
+        if (user == null || user.getTransferPin() == null || pin == null) {
+            return false;
+        }
+        // The PIN is not encoded in the database, so we do a plain text comparison for now.
+        // In a real application, the PIN should be stored hashed.
+        return user.getTransferPin().equals(pin);
+    }
+
     /**
      * Calculate cosine similarity between two 512-dimensional vectors
      * Formula: (A · B) / (||A|| * ||B||)
@@ -65,4 +77,3 @@ public class VoiceAuthenticationServiceImpl implements VoiceAuthenticationServic
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 }
-

@@ -119,7 +119,7 @@ public class AccountServiceImpl implements AccountService {
                 .orElseThrow(() -> new RuntimeException("Account not found"));
         account.setIsActive(false);
         accountRepository.save(account);
-        // TODO: Log deactivation reason if needed
+        log.info("Account {} deactivated. Reason: {}", accountId, reason != null ? reason : "No reason provided");
     }
 
     @Override

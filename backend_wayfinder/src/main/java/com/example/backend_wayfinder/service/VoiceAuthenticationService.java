@@ -19,5 +19,12 @@ public interface VoiceAuthenticationService {
      * @return Cosine similarity score between 0.0 and 1.0
      */
     double getSimilarityScore(List<Double> currentFingerprint, List<Double> referenceFingerprint);
-}
 
+    /**
+     * Validate the user's transfer PIN.
+     * @param user The user entity containing the stored PIN.
+     * @param pin The PIN to validate.
+     * @return true if the PIN is correct.
+     */
+    boolean validatePin(com.example.backend_wayfinder.entities.UserEntity user, String pin);
+}

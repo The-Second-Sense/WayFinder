@@ -22,6 +22,7 @@ public class UserDto {
     private String phoneNumber;
     private Boolean isVoiceAuthEnabled;
     private ArrayList<Double> voiceFingerprint;
+    private String transferPin;
     private LocalDateTime createdAt;
     private LocalDateTime lastLogin;
 

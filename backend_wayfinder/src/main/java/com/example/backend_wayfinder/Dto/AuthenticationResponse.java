@@ -19,6 +19,5 @@ public class AuthenticationResponse {
     private String refreshToken;
     private UserDto user;
     private List<AccountDto> accounts;
-    private boolean requiresMfa;        // If additional MFA is needed
-
+    private boolean requiresMfa;
 }

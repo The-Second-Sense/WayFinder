@@ -10,6 +10,7 @@ import com.example.backend_wayfinder.repository.UserRepository;
 import com.example.backend_wayfinder.service.AuthenticationService;
 import com.example.backend_wayfinder.service.JwtService;
 import com.example.backend_wayfinder.service.ModalAiService;
+import com.example.backend_wayfinder.service.UserService;
 import com.example.backend_wayfinder.service.VoiceAuthenticationService;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -36,6 +37,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final ModalAiService modalAiService;
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final UserService userService;
 
     // In-memory session storage (replace with Redis in production)
     private final Map<String, UUID> activeSessions = new HashMap<>();
@@ -51,6 +53,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             log.warn("Invalid password attempt for phone: {}", phone);
             throw new RuntimeException("Invalid credentials");
         }
+
 
         // Update last login
         user.setLastLogin(LocalDateTime.now());
@@ -76,6 +79,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .phoneNumber(user.getPhoneNumber())
                 .isVoiceAuthEnabled(user.getIsVoiceAuthEnabled())
                 .voiceFingerprint(user.getVoiceFingerprint())
+                .transferPin(user.getTransferPin())
                 .createdAt(user.getCreatedAt())
                 .lastLogin(user.getLastLogin())
                 .build();
@@ -153,6 +157,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     .fullName(user.getFullName())
                     .phoneNumber(user.getPhoneNumber())
                     .isVoiceAuthEnabled(user.getIsVoiceAuthEnabled())
+                    .transferPin(user.getTransferPin())
                     .createdAt(user.getCreatedAt())
                     .lastLogin(user.getLastLogin())
                     .build();
@@ -275,6 +280,34 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Override
     public boolean isSessionValid(String sessionToken) {
         return activeSessions.containsKey(sessionToken);
+    }
+
+    @Override
+    public AuthenticationResponse register(CreateUserRequest request) {
+        log.info("Attempting register for email: {}", request.getEmail());
+
+        UserDto createdUser = userService.createUser(request);
+        UserEntity user = userRepository.findById(createdUser.getUserId())
+                .orElseThrow(() -> new RuntimeException("User created but not found"));
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        String accessToken = jwtService.generateToken(userDetails);
+        String refreshToken = jwtService.generateRefreshToken(userDetails);
+
+        List<AccountEntity> accountEntities = accountRepository.findByUser_UserId(user.getUserId());
+        List<AccountDto> accounts = accountEntities.stream()
+                .map(this::convertAccountToDto)
+                .collect(java.util.stream.Collectors.toList());
+
+        return AuthenticationResponse.builder()
+                .success(true)
+                .message("Registration successful")
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(createdUser)
+                .accounts(accounts)
+                .requiresMfa(false)
+                .build();
     }
 
     // Helper methods

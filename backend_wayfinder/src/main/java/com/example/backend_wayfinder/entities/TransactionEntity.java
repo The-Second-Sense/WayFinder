@@ -29,7 +29,7 @@ public class TransactionEntity {
     @JoinColumn(name = "source_account_id")
     private AccountEntity sourceAccount;
 
-    @Column(name = "destination_account_number")
+    @Column(name = "destination_account_number", length = 20)
     private String destinationAccountNumber;
 
     @Column(precision = 15, scale = 2,nullable = false)
@@ -38,6 +38,7 @@ public class TransactionEntity {
     @Column(length = 3, columnDefinition = "VARCHAR(3) DEFAULT 'RON'")
     private String currency;
 
+    @Column(name = "description", length = 500)
     private String description;
 
     private String status;

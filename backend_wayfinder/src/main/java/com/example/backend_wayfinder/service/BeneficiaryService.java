@@ -18,6 +18,7 @@ public interface BeneficiaryService {
     List<BeneficiaryDto> getBeneficiariesByUserId(UUID userId);
     BeneficiaryDto getBeneficiaryByNickname(UUID userId, String nickname);
     BeneficiaryDto getBeneficiaryByPhoneNumber(UUID userId, String phoneNumber);
+    List<BeneficiaryDto> searchBeneficiaries(UUID userId, String searchTerm);
 
     BeneficiaryDto updateBeneficiary(Integer beneficiaryId, UUID userId, UpdateBeneficiaryRequest request);
 

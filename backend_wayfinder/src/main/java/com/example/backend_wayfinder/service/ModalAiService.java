@@ -72,9 +72,13 @@ public class ModalAiService {
         String audioBase64,
         List<Double> referenceFingerprint
     ) {
+        // Sanitize base64: strip data URI prefix and fix padding
+        String cleanAudio = sanitizeBase64(audioBase64);
+
         ModalSecurityRequest request = ModalSecurityRequest.builder()
-            .current_voice_base64(audioBase64)
+            .current_voice_base64(cleanAudio)
             .reference_fingerprint(referenceFingerprint)
+            .intent_agent_url(modalIntentUrl)
             .deberta_url(modalDebertaUrl)
             .build();
 
@@ -159,19 +163,28 @@ public class ModalAiService {
                 return securityResponse;
 
             } catch (Exception e) {
-                log.error("Fine-tuned intent classification failed: {}", e.getMessage());
-                // Return with original zero-shot intent if fine-tuned fails
+                log.warn("Fine-tuned intent classification failed: {}", e.getMessage());
                 log.warn("Returning response with zero-shot intent due to fine-tuned model failure");
                 return securityResponse;
             }
 
         } catch (AiServiceException e) {
-            log.error("Voice processing failed for service {}: {}", e.getServiceName(), e.getMessage());
+            log.warn("Voice processing failed for service {}: {}", e.getServiceName(), e.getMessage());
 
-            // Return a failed response instead of throwing
+            // Distinguish between voice not recognized vs actual service error
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            boolean isVoiceDenied = msg.contains("denied") || msg.contains("not recognized")
+                    || msg.contains("voice mismatch") || msg.contains("similarity")
+                    || msg.contains("threshold");
+
             ModalSecurityResponse failedResponse = new ModalSecurityResponse();
-            failedResponse.setStatus("ERROR");
-            failedResponse.setReason("AI service temporarily unavailable: " + e.getMessage());
+            if (isVoiceDenied) {
+                failedResponse.setStatus("DENIED");
+                failedResponse.setReason("Voice not recognized. Please try again.");
+            } else {
+                failedResponse.setStatus("ERROR");
+                failedResponse.setReason("AI service temporarily unavailable. Please try again later.");
+            }
             failedResponse.setScore(0.0);
             return failedResponse;
         }
@@ -422,7 +435,8 @@ public class ModalAiService {
      * @return List of 512 double values representing the voice fingerprint
      */
     public List<Double> extractVoiceFingerprint(String audioBase64) {
-        log.info("Extracting voice fingerprint from audio (size: {} bytes)", audioBase64.length());
+        String cleanAudio = sanitizeBase64(audioBase64);
+        log.info("Extracting voice fingerprint from audio (size: {} bytes)", cleanAudio.length());
 
         if (modalFingerprintUrl == null || modalFingerprintUrl.isEmpty()) {
             throw new AiServiceException(
@@ -440,7 +454,7 @@ public class ModalAiService {
             endpoint,
             () -> {
                 // Decode base64 to bytes
-                byte[] audioBytes = Base64.getDecoder().decode(audioBase64);
+                byte[] audioBytes = Base64.getDecoder().decode(cleanAudio);
 
                 // Create multipart request
                 HttpHeaders headers = new HttpHeaders();
@@ -516,6 +530,21 @@ public class ModalAiService {
     @FunctionalInterface
     private interface RetryableOperation<T> {
         T execute() throws Exception;
+    }
+
+    /**
+     * Sanitize a base64 audio string: strips data URI prefix, removes whitespace, fixes padding.
+     */
+    private String sanitizeBase64(String audioBase64) {
+        String clean = audioBase64;
+        if (clean.contains(",")) {
+            clean = clean.substring(clean.indexOf(',') + 1);
+        }
+        clean = clean.replaceAll("\\s", "");
+        int padding = clean.length() % 4;
+        if (padding == 2) clean += "==";
+        else if (padding == 3) clean += "=";
+        return clean;
     }
 }
 

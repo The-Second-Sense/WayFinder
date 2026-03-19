@@ -39,6 +39,12 @@ public class CreateUserRequest {
     )
     private String phoneNumber;
 
+    @Pattern(
+        regexp = "^\\d{4}$",
+        message = "Transfer PIN must be exactly 4 digits"
+    )
+    private String transferPin;
+
     // Optional: Voice authentication setup during registration
     private Boolean enableVoiceAuth;
 

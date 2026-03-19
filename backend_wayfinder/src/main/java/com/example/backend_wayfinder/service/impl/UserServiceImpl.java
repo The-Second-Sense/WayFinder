@@ -44,6 +44,7 @@ public class UserServiceImpl implements UserService {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .phoneNumber(request.getPhoneNumber())
+                .transferPin(request.getTransferPin())
                 .isVoiceAuthEnabled(false)
                 .build();
 
@@ -51,11 +52,12 @@ public class UserServiceImpl implements UserService {
         log.info("User created successfully with ID: {}", savedUser.getUserId());
 
         // Auto-create a default RON CURRENT account for the new user
+
         AccountEntity defaultAccount = AccountEntity.builder()
                 .user(savedUser)
                 .accountNumber(generateAccountNumber())
-                .accountType("CURRENT")
-                .balance(BigDecimal.ZERO)
+                .accountType("CURENT")
+                .balance(new BigDecimal("1000"))
                 .currency("RON")
                 .isActive(true)
                 .build();
@@ -204,6 +206,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPhoneNumber())
                 .isVoiceAuthEnabled(user.getIsVoiceAuthEnabled())
                 .voiceFingerprint(user.getVoiceFingerprint())
+                .transferPin(user.getTransferPin())
                 .createdAt(user.getCreatedAt())
                 .lastLogin(user.getLastLogin())
                 .build();

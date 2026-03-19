@@ -6,6 +6,9 @@ import com.example.backend_wayfinder.Dto.*;
 
 public interface AuthenticationService {
 
+    // Registration
+    AuthenticationResponse register(CreateUserRequest request);
+
     // Login/Authentication
     AuthenticationResponse login(String phone, String password);
     AuthenticationResponse voiceLogin(byte[] voiceSample, String email);
@@ -22,7 +25,5 @@ public interface AuthenticationService {
     void invalidateAllSessions(UUID userId);
     boolean isSessionValid(String sessionToken);
 
-    // TODO: Implement 2FA and SMS OTP for password recovery
+
 }
-
-

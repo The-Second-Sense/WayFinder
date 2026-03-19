@@ -14,6 +14,7 @@ import java.util.List;
 public class ModalSecurityRequest {
     private String current_voice_base64;
     private List<Double> reference_fingerprint;
+    private String intent_agent_url;
     private String deberta_url;
 }
 

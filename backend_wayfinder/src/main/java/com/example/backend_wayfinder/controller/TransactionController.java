@@ -55,8 +55,9 @@ public class TransactionController {
 
         // Resolve sourceAccountId from JWT when not provided by the frontend
         Integer sourceAccountId = request.getSourceAccountId();
+        String email = null;
         if (sourceAccountId == null) {
-            String email = jwtService.extractUsername(token.replace("Bearer ", "").trim());
+            email = jwtService.extractUsername(token.replace("Bearer ", "").trim());
             sourceAccountId = userRepository.findByEmail(email)
                     .flatMap(user -> accountRepository
                             .findByUser_UserIdAndIsActive(user.getUserId(), true)
@@ -64,7 +65,22 @@ public class TransactionController {
                     .map(a -> a.getAccountId())
                     .orElseThrow(() -> new ResourceNotFoundException("No active account found for user"));
             log.info("Auto-resolved sourceAccountId: {}", sourceAccountId);
+        } else {
+            // Get email from account
+            email = accountRepository.findById(sourceAccountId)
+                    .map(acc -> acc.getUser().getEmail())
+                    .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
         }
+
+        // Validate PIN before processing transfer
+        var user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!user.getTransferPin().equals(request.getTransferPin())) {
+            log.warn("Invalid transfer PIN for user: {}", email);
+            throw new IllegalArgumentException("Invalid transfer PIN");
+        }
+        log.info("Transfer PIN validated for user: {}", email);
 
         // Resolve recipient: phone number takes precedence if IBAN not supplied
         String destinationAccountNumber = request.getRecipientAccountNumber();
@@ -180,6 +196,9 @@ public class TransactionController {
         private String currency;
         /** Optional */
         private String description;
+        /** Required — transfer PIN for security */
+        @jakarta.validation.constraints.NotBlank(message = "Transfer PIN is required")
+        private String transferPin;
         /** Optional — only validated if user has voice auth enabled */
         private java.util.List<Double> voiceFingerprint;
     }
