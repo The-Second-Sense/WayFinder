@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,284 +14,531 @@ import Toast from "react-native-toast-message";
 import { spacing, fontSizes, borderRadius, ms } from "@/constants/responsive";
 import { ArrowLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import {
+  apiService,
+  BillDto,
+  ProviderDto,
+} from "./apiService";
+import { useAuth } from "../contexts/AuthContext";
 
-interface Bill {
-  id: string;
-  name: string;
-  amount: number;
-  dueDate: string;
-  category: string;
-  accountNumber: string;
-}
-
-interface BillPaymentScreenProps {
-  onPayment?: (bill: Bill, amount: number) => void;
-}
-
-export default function BillPaymentScreen({
-  onPayment,
-}: BillPaymentScreenProps) {
+export default function BillManagementScreen() {
   const router = useRouter();
-  const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+  const { user } = useAuth();
+
+  const [providers, setProviders] = useState<ProviderDto[]>([]);
+  const [pendingBills, setPendingBills] = useState<BillDto[]>([]);
+  const [allBills, setAllBills] = useState<BillDto[]>([]);
+  const [showAllBills, setShowAllBills] = useState(false);
+
+  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+  const [isLoadingBills, setIsLoadingBills] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [manualProviderAmount, setManualProviderAmount] = useState("");
+
+  const [selectedBill, setSelectedBill] = useState<BillDto | null>(null);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
+
+  const [providerId, setProviderId] = useState("");
+  const [billName, setBillName] = useState("");
   const [amount, setAmount] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [recipientName, setRecipientName] = useState("");
+  const [description, setDescription] = useState("");
 
-  const popularBills: Bill[] = [
-    {
-      id: "1",
-      name: "Curent Electric",
-      amount: 685.0,
-      dueDate: "28 Feb 2026",
-      category: "utilities",
-      accountNumber: "RO49AAAA1B31007593840000",
-    },
-    {
-      id: "2",
-      name: "Gaz Natural",
-      amount: 234.5,
-      dueDate: "25 Feb 2026",
-      category: "utilities",
-      accountNumber: "RO49AAAA1B31007593840001",
-    },
-    {
-      id: "3",
-      name: "Apă Canal",
-      amount: 156.3,
-      dueDate: "20 Feb 2026",
-      category: "utilities",
-      accountNumber: "RO49AAAA1B31007593840002",
-    },
-    {
-      id: "4",
-      name: "Internet & TV",
-      amount: 89.0,
-      dueDate: "15 Feb 2026",
-      category: "telecom",
-      accountNumber: "RO49AAAA1B31007593840003",
-    },
-    {
-      id: "5",
-      name: "Telefon Mobil",
-      amount: 45.0,
-      dueDate: "10 Feb 2026",
-      category: "telecom",
-      accountNumber: "RO49AAAA1B31007593840004",
-    },
-    {
-      id: "6",
-      name: "Asigurare Auto",
-      amount: 450.0,
-      dueDate: "05 Mar 2026",
-      category: "insurance",
-      accountNumber: "RO49AAAA1B31007593840005",
-    },
-  ];
+  const selectedProvider = useMemo(
+    () => providers.find((p) => p.id === providerId) ?? null,
+    [providerId, providers]
+  );
 
-  const handleSelectBill = (bill: Bill) => {
-    setSelectedBill(bill);
-    setAmount(bill.amount.toString());
-    setAccountNumber(bill.accountNumber);
-    setRecipientName(bill.name);
+  const visibleBills = useMemo(
+    () => (showAllBills ? allBills : pendingBills),
+    [showAllBills, allBills, pendingBills]
+  );
+
+  const loadProviders = useCallback(async () => {
+    setIsLoadingProviders(true);
+    try {
+      const data = await apiService.getProviders();
+      setProviders(data);
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Nu am putut încărca furnizorii",
+        text2: error?.message || "Încearcă din nou.",
+      });
+    } finally {
+      setIsLoadingProviders(false);
+    }
+  }, []);
+
+  const loadBills = useCallback(async () => {
+    if (!user?.id) return;
+
+    setIsLoadingBills(true);
+    try {
+      if (showAllBills) {
+        const data = await apiService.getAllBillsByUserId(user.id);
+        setAllBills(data);
+        return;
+      }
+
+      if (selectedProvider?.name) {
+        const data = await apiService.getPendingBillsByProviderName(user.id, selectedProvider.name);
+        setPendingBills(data);
+      } else {
+        const data = await apiService.getPendingBillsByUserId(user.id);
+        setPendingBills(data);
+      }
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Nu am putut încărca facturile",
+        text2: error?.message || "Încearcă din nou.",
+      });
+    } finally {
+      setIsLoadingBills(false);
+    }
+  }, [selectedProvider?.name, showAllBills, user?.id]);
+
+  const loadInitial = useCallback(async () => {
+    if (!user?.id) return;
+    await Promise.all([loadProviders(), loadBills()]);
+  }, [loadBills, loadProviders, user?.id]);
+
+  useEffect(() => {
+    loadInitial();
+  }, [loadInitial]);
+
+  useEffect(() => {
+    loadBills();
+  }, [loadBills]);
+
+  const resetForm = () => {
+    setProviderId("");
+    setBillName("");
+    setAmount("");
+    setDueDate("");
+    setAccountNumber("");
+    setDescription("");
+    setShowProviderPicker(false);
   };
 
-  const handlePayment = () => {
-    const parsedAmount = parseFloat(amount);
+  const handleCreateBill = async () => {
+    if (!user?.id) return;
 
-    if (
-      !recipientName ||
-      !accountNumber ||
-      !parsedAmount ||
-      parsedAmount <= 0
-    ) {
+    const parsedAmount = Number(amount.replace(",", "."));
+
+    if (!providerId || !billName.trim() || !dueDate.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       Toast.show({
         type: "error",
         text1: "Date incomplete",
-        text2: "Te rugăm să completezi toate câmpurile",
+        text2: "Completează provider, nume factură, sumă și data scadenței.",
       });
       return;
     }
 
-    if (selectedBill && onPayment) {
-      onPayment(selectedBill, parsedAmount);
+    setIsSubmitting(true);
+    try {
+      const created = await apiService.createBill({
+        userId: user.id,
+        providerId,
+        billName: billName.trim(),
+        amount: parsedAmount,
+        currency: "RON",
+        dueDate: dueDate.trim(),
+        accountNumber: accountNumber.trim() || undefined,
+        description: description.trim() || undefined,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Factură adăugată",
+        text2: `${created.billName} a fost salvată.`,
+      });
+
+      resetForm();
+      await loadBills();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Nu am putut adăuga factura",
+        text2: error?.message || "Verifică datele și încearcă din nou.",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    Toast.show({
-      type: "success",
-      text1: "Plată efectuată",
-      text2: `${parsedAmount.toFixed(2)} RON către ${recipientName}`,
-    });
-
-    // Reset form
-    setSelectedBill(null);
-    setAmount("");
-    setAccountNumber("");
-    setRecipientName("");
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "utilities":
-        return "⚡";
-      case "telecom":
-        return "📱";
-      case "insurance":
-        return "🛡️";
-      default:
-        return "💳";
+  const resolveProviderForBill = (bill: BillDto): ProviderDto | null => {
+    if (bill.providerId) {
+      const byId = providers.find((p) => p.id === bill.providerId);
+      if (byId) return byId;
+    }
+
+    if (bill.providerName) {
+      const byName = providers.find((p) => p.name.toLowerCase() === bill.providerName?.toLowerCase());
+      if (byName) return byName;
+    }
+
+    return null;
+  };
+
+  const handlePaySelectedBill = async () => {
+    if (!user?.id || !selectedBill) return;
+
+    const provider = resolveProviderForBill(selectedBill);
+    const targetAccountNumber = provider?.targetAccountNumber;
+
+    if (!targetAccountNumber) {
+      Toast.show({
+        type: "error",
+        text1: "Lipsește IBAN-ul providerului",
+        text2: "Nu putem procesa plata fără targetAccountNumber.",
+      });
+      return;
+    }
+
+    setIsPaying(true);
+    try {
+      await apiService.confirmPlataFacturi({
+        userId: user.id,
+        confirmed: true,
+        targetAccountNumber,
+        amount: selectedBill.amount,
+        currency: selectedBill.currency || "RON",
+        description: selectedBill.billName,
+      });
+
+      await apiService.updateBillStatus(selectedBill.id, "PAID");
+
+      Toast.show({
+        type: "success",
+        text1: "Factură plătită",
+        text2: `${selectedBill.billName} a fost marcată ca PAID.`,
+      });
+
+      setSelectedBill(null);
+      await loadBills();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Plata a eșuat",
+        text2: error?.message || "Încearcă din nou.",
+      });
+    } finally {
+      setIsPaying(false);
     }
   };
+
+  const handleDeleteBill = async (billId: string) => {
+    try {
+      await apiService.deleteBill(billId);
+      if (selectedBill?.id === billId) {
+        setSelectedBill(null);
+      }
+      Toast.show({ type: "success", text1: "Factura a fost ștearsă" });
+      await loadBills();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Nu am putut șterge factura",
+        text2: error?.message || "Încearcă din nou.",
+      });
+    }
+  };
+
+  const handleManualProviderPayment = async () => {
+    if (!user?.id || !selectedProvider?.targetAccountNumber) {
+      Toast.show({
+        type: "error",
+        text1: "Lipsește providerul",
+        text2: "Alege un provider valid înainte de plată.",
+      });
+      return;
+    }
+
+    const parsedAmount = Number(manualProviderAmount.replace(",", "."));
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Sumă invalidă",
+        text2: "Introduceți o sumă validă.",
+      });
+      return;
+    }
+
+    setIsPaying(true);
+    try {
+      await apiService.confirmPlataFacturi({
+        userId: user.id,
+        confirmed: true,
+        targetAccountNumber: selectedProvider.targetAccountNumber,
+        amount: parsedAmount,
+        currency: "RON",
+        description: `Plată factură ${selectedProvider.name}`,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Plată efectuată",
+        text2: `${parsedAmount.toFixed(2)} RON către ${selectedProvider.name}`,
+      });
+      setManualProviderAmount("");
+      await loadBills();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Plata a eșuat",
+        text2: error?.message || "Încearcă din nou.",
+      });
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const providerLabel = selectedProvider?.name || "Alege furnizor";
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      {/* Back Button Header */}
       <View style={styles.topHeader}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Plăți Facturi</Text>
+        <Text style={styles.headerTitle}>Bill Management</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Plătește Factura</Text>
-          <Text style={styles.headerSubtitle}>
-            Selectează o factură populară sau introdu manual detaliile
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerBanner}>
+          <Text style={styles.bannerTitle}>Adaugă și plătește facturi</Text>
+          <Text style={styles.bannerSubtitle}>
+            Creezi facturi manual, vezi lista ta și plătești instant.
           </Text>
         </View>
 
-        {/* Popular Bills */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Facturi Populare</Text>
-          <View style={styles.billsGrid}>
-            {popularBills.map((bill) => (
-              <TouchableOpacity
-                key={bill.id}
-                style={[
-                  styles.billCard,
-                  selectedBill?.id === bill.id && styles.billCardSelected,
-                ]}
-                onPress={() => handleSelectBill(bill)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.billCardHeader}>
-                  <Text style={styles.billIcon}>
-                    {getCategoryIcon(bill.category)}
-                  </Text>
-                  <Text style={styles.billAmount}>
-                    {bill.amount.toFixed(2)} RON
-                  </Text>
-                </View>
-                <Text style={styles.billName}>{bill.name}</Text>
-                <Text style={styles.billDueDate}>Scadență: {bill.dueDate}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+          <Text style={styles.sectionTitle}>1. Add Bill</Text>
+          <View style={styles.formCard}>
+            <Text style={styles.label}>Provider</Text>
+            <TouchableOpacity
+              style={styles.providerPicker}
+              onPress={() => setShowProviderPicker((prev) => !prev)}
+            >
+              <Text style={styles.providerPickerText}>{providerLabel}</Text>
+              <Text style={styles.providerPickerChevron}>{showProviderPicker ? "▲" : "▼"}</Text>
+            </TouchableOpacity>
 
-        {/* Manual Payment Form */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {selectedBill ? "Detalii Plată" : "Plată Manuală"}
-          </Text>
-
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nume Destinatar</Text>
-              <TextInput
-                style={styles.input}
-                value={recipientName}
-                onChangeText={setRecipientName}
-                placeholder="Numele companiei"
-                placeholderTextColor="#1A1A1A66"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>IBAN / Cont</Text>
-              <TextInput
-                style={styles.input}
-                value={accountNumber}
-                onChangeText={setAccountNumber}
-                placeholder="RO49AAAA1B31007593840000"
-                placeholderTextColor="#1A1A1A66"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Sumă (RON)</Text>
-              <TextInput
-                style={styles.input}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0.00"
-                placeholderTextColor="#1A1A1A66"
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            {selectedBill && (
-              <View style={styles.selectedBillInfo}>
-                <Text style={styles.selectedBillLabel}>Factură selectată:</Text>
-                <Text style={styles.selectedBillName}>{selectedBill.name}</Text>
-                <Text style={styles.selectedBillDate}>
-                  Scadență: {selectedBill.dueDate}
-                </Text>
+            {showProviderPicker && (
+              <View style={styles.providerList}>
+                {isLoadingProviders ? (
+                  <ActivityIndicator color="#1A1A1A" />
+                ) : (
+                  providers.map((provider) => (
+                    <TouchableOpacity
+                      key={provider.id}
+                      style={styles.providerItem}
+                      onPress={() => {
+                        setProviderId(provider.id);
+                        setShowProviderPicker(false);
+                      }}
+                    >
+                      <Text style={styles.providerItemName}>{provider.name}</Text>
+                      {provider.category ? (
+                        <Text style={styles.providerItemMeta}>{provider.category}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  ))
+                )}
               </View>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.payButton,
-                (!recipientName || !accountNumber || !amount) &&
-                  styles.payButtonDisabled,
-              ]}
-              onPress={handlePayment}
-              disabled={!recipientName || !accountNumber || !amount}
-            >
-              <Text style={styles.payButtonText}>
-                Plătește{" "}
-                {amount ? `${parseFloat(amount).toFixed(2)} RON` : "Factura"}
-              </Text>
-            </TouchableOpacity>
+            <Text style={styles.label}>Bill Name</Text>
+            <TextInput
+              style={styles.input}
+              value={billName}
+              onChangeText={setBillName}
+              placeholder="Ex: Digi Internet Monthly"
+              placeholderTextColor="#6B7280"
+            />
 
-            {selectedBill && (
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={() => {
-                  setSelectedBill(null);
-                  setAmount("");
-                  setAccountNumber("");
-                  setRecipientName("");
-                }}
-              >
-                <Text style={styles.clearButtonText}>Șterge Selecția</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.label}>Amount (RON)</Text>
+            <TextInput
+              style={styles.input}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              placeholder="Ex: 45.99"
+              placeholderTextColor="#6B7280"
+            />
+
+            <Text style={styles.label}>Due Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.input}
+              value={dueDate}
+              onChangeText={setDueDate}
+              placeholder="2026-04-15"
+              placeholderTextColor="#6B7280"
+            />
+
+            <Text style={styles.label}>Account Number (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={accountNumber}
+              onChangeText={setAccountNumber}
+              placeholder="CUST-123456"
+              placeholderTextColor="#6B7280"
+            />
+
+            <Text style={styles.label}>Description (optional)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="March billing period"
+              placeholderTextColor="#6B7280"
+              multiline
+            />
+
+            <TouchableOpacity
+              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+              onPress={handleCreateBill}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#1A1A1A" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Adaugă Factura</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Payment Tips */}
-        <View style={styles.tipsSection}>
-          <Text style={styles.tipsTitle}>💡 Sfaturi</Text>
-          <Text style={styles.tipText}>
-            • Verifică întotdeauna numărul IBAN înainte de a plăti
-          </Text>
-          <Text style={styles.tipText}>
-            • Poți salva facturi recurente pentru plăți mai rapide
-          </Text>
-          <Text style={styles.tipText}>
-            • Plățile sunt procesate instant 24/7
-          </Text>
+        <View style={styles.section}>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.sectionTitle}>2. View Bills</Text>
+            <TouchableOpacity
+              onPress={() => setShowAllBills((prev) => !prev)}
+              style={styles.switchButton}
+            >
+              <Text style={styles.switchButtonText}>{showAllBills ? "Doar PENDING" : "Toate"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoadingBills ? (
+            <View style={styles.loadingCard}>
+              <ActivityIndicator color="#1A1A1A" />
+              <Text style={styles.loadingText}>Se încarcă facturile...</Text>
+            </View>
+          ) : visibleBills.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Nu ai facturi în această listă</Text>
+              <Text style={styles.emptyText}>Adaugă o factură nouă din formularul de mai sus.</Text>
+            </View>
+          ) : (
+            visibleBills.map((bill) => {
+              const isSelected = selectedBill?.id === bill.id;
+              const providerName = bill.providerName || "Provider necunoscut";
+              const status = bill.status || "PENDING";
+
+              return (
+                <TouchableOpacity
+                  key={bill.id}
+                  style={[styles.billCard, isSelected && styles.billCardSelected]}
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedBill(bill)}
+                >
+                  <View style={styles.billTopRow}>
+                    <Text style={styles.billTitle}>{bill.billName}</Text>
+                    <Text style={[styles.statusBadge, status === "PAID" ? styles.statusPaid : styles.statusPending]}>
+                      {status}
+                    </Text>
+                  </View>
+                  <Text style={styles.billMeta}>{providerName}</Text>
+                  <Text style={styles.billMeta}>Scadență: {bill.dueDate}</Text>
+                  <Text style={styles.billAmount}>{bill.amount.toFixed(2)} {bill.currency || "RON"}</Text>
+
+                  <View style={styles.billActionsRow}>
+                    <TouchableOpacity
+                      style={[styles.secondaryButton, status !== "PENDING" && styles.buttonDisabled]}
+                      onPress={handlePaySelectedBill}
+                      disabled={status !== "PENDING" || isPaying || !isSelected}
+                    >
+                      <Text style={styles.secondaryButtonText}>Plătește</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteBill(bill.id)}
+                    >
+                      <Text style={styles.deleteButtonText}>Șterge</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
+
+        {selectedBill && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>3. Pay Bill</Text>
+            <View style={styles.detailsCard}>
+              <Text style={styles.detailsTitle}>{selectedBill.billName}</Text>
+              <Text style={styles.detailsLine}>Provider: {selectedBill.providerName || "-"}</Text>
+              <Text style={styles.detailsLine}>Sumă: {selectedBill.amount.toFixed(2)} {selectedBill.currency || "RON"}</Text>
+              <Text style={styles.detailsLine}>Scadență: {selectedBill.dueDate}</Text>
+              <Text style={styles.detailsLine}>Status: {selectedBill.status}</Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  (selectedBill.status !== "PENDING" || isPaying) && styles.buttonDisabled,
+                ]}
+                onPress={handlePaySelectedBill}
+                disabled={selectedBill.status !== "PENDING" || isPaying}
+              >
+                {isPaying ? (
+                  <ActivityIndicator color="#1A1A1A" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Pay Now</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {!showAllBills && selectedProvider && visibleBills.length === 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>3. Plată manuală la provider</Text>
+            <View style={styles.detailsCard}>
+              <Text style={styles.detailsLine}>
+                Nu aveți facturi PENDING la {selectedProvider.name}. Introduceți suma dorită.
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={manualProviderAmount}
+                onChangeText={setManualProviderAmount}
+                keyboardType="decimal-pad"
+                placeholder="Ex: 100"
+                placeholderTextColor="#6B7280"
+              />
+              <TouchableOpacity
+                style={[styles.primaryButton, (!manualProviderAmount || isPaying) && styles.buttonDisabled]}
+                onPress={handleManualProviderPayment}
+                disabled={!manualProviderAmount || isPaying}
+              >
+                {isPaying ? (
+                  <ActivityIndicator color="#1A1A1A" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Confirmă plata</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -309,7 +557,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: "#E5E7EB",
   },
   backButton: {
     padding: spacing.sm,
@@ -326,177 +574,271 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  header: {
+  headerBanner: {
     backgroundColor: "#FFED00",
     padding: spacing.lg,
     borderBottomLeftRadius: borderRadius.xl,
     borderBottomRightRadius: borderRadius.xl,
   },
-  headerSubtitle: {
-    fontSize: fontSizes.md,
-    color: "#1A1A1A",
-    opacity: 0.7,
-  },
-  section: {
-    padding: spacing.lg,
-  },
-  sectionTitle: {
+  bannerTitle: {
     fontSize: fontSizes.xl,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    marginBottom: spacing.lg,
-  },
-  billsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  billCard: {
-    width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  billCardSelected: {
-    backgroundColor: "#F5D908",
-    borderColor: "#1A1A1A",
-    borderWidth: 3,
-  },
-  billCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  billIcon: {
-    fontSize: fontSizes.xxl,
-  },
-  billAmount: {
-    fontSize: fontSizes.md,
     fontWeight: "700",
     color: "#1A1A1A",
-  },
-  billName: {
-    fontSize: fontSizes.md,
-    fontWeight: "600",
-    color: "#1A1A1A",
     marginBottom: spacing.xs,
   },
-  billDueDate: {
-    fontSize: fontSizes.sm,
-    color: "#1A1A1A",
-    opacity: 0.6,
-  },
-  form: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-  },
-  inputGroup: {
-    marginBottom: spacing.lg,
-  },
-  label: {
+  bannerSubtitle: {
     fontSize: fontSizes.md,
-    fontWeight: "500",
     color: "#1A1A1A",
-    marginBottom: spacing.sm,
+    opacity: 0.75,
   },
-  input: {
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: fontSizes.base,
-    color: "#1A1A1A",
-    backgroundColor: "#FFFFFF",
+  section: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  selectedBillInfo: {
-    backgroundColor: "#FFED00",
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  selectedBillLabel: {
-    fontSize: fontSizes.sm,
-    color: "#1A1A1A",
-    opacity: 0.7,
-    marginBottom: spacing.xs,
-  },
-  selectedBillName: {
-    fontSize: fontSizes.base,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    marginBottom: 2,
-  },
-  selectedBillDate: {
-    fontSize: fontSizes.sm,
-    color: "#1A1A1A",
-    opacity: 0.7,
-  },
-  payButton: {
-    backgroundColor: "#FFED00",
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  payButtonDisabled: {
-    backgroundColor: "#1A1A1A",
-    opacity: 0.2,
-  },
-  payButtonText: {
-    fontSize: fontSizes.base,
-    fontWeight: "600",
-    color: "#1A1A1A",
-  },
-  clearButton: {
-    marginTop: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-    backgroundColor: "#FFFFFF",
-  },
-  clearButtonText: {
-    fontSize: fontSizes.md,
-    fontWeight: "500",
-    color: "#1A1A1A",
-  },
-  tipsSection: {
-    backgroundColor: "#F5D908",
-    margin: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    borderWidth: 2,
-    borderColor: "#1A1A1A",
-  },
-  tipsTitle: {
-    fontSize: fontSizes.base,
-    fontWeight: "600",
+  sectionTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: "700",
     color: "#1A1A1A",
     marginBottom: spacing.md,
   },
-  tipText: {
-    fontSize: fontSizes.md,
+  formCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  label: {
+    fontSize: fontSizes.sm,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  providerPicker: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: borderRadius.md,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  providerPickerText: {
+    fontSize: fontSizes.base,
+    color: "#111827",
+    flexShrink: 1,
+  },
+  providerPickerChevron: {
+    fontSize: fontSizes.sm,
+    color: "#6B7280",
+  },
+  providerList: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: borderRadius.md,
+    backgroundColor: "#FFFFFF",
+    maxHeight: ms(220),
+    paddingVertical: spacing.xs,
+  },
+  providerItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  providerItemName: {
+    fontSize: fontSizes.base,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  providerItemMeta: {
+    fontSize: fontSizes.sm,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    fontSize: fontSizes.base,
+    color: "#111827",
+    backgroundColor: "#FFFFFF",
+  },
+  textArea: {
+    minHeight: ms(84),
+    textAlignVertical: "top",
+  },
+  primaryButton: {
+    marginTop: spacing.lg,
+    backgroundColor: "#FFED00",
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#E6D800",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+  },
+  primaryButtonText: {
     color: "#1A1A1A",
+    fontWeight: "700",
+    fontSize: fontSizes.base,
+  },
+  listHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  switchButton: {
+    backgroundColor: "#111827",
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  switchButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSizes.sm,
+    fontWeight: "700",
+  },
+  loadingCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: spacing.sm,
+    color: "#374151",
+    fontSize: fontSizes.sm,
+  },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: fontSizes.base,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: spacing.xs,
+  },
+  emptyText: {
+    fontSize: fontSizes.sm,
+    color: "#6B7280",
+  },
+  billCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  billCardSelected: {
+    borderColor: "#111827",
+    borderWidth: 2,
+  },
+  billTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  billTitle: {
+    flex: 1,
+    fontSize: fontSizes.base,
+    fontWeight: "700",
+    color: "#111827",
+    marginRight: spacing.sm,
+  },
+  statusBadge: {
+    fontSize: fontSizes.xs,
+    fontWeight: "700",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  statusPending: {
+    color: "#92400E",
+    backgroundColor: "#FEF3C7",
+  },
+  statusPaid: {
+    color: "#065F46",
+    backgroundColor: "#D1FAE5",
+  },
+  billMeta: {
+    fontSize: fontSizes.sm,
+    color: "#4B5563",
+    marginBottom: 2,
+  },
+  billAmount: {
+    marginTop: spacing.xs,
+    fontSize: fontSizes.md,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  billActionsRow: {
+    marginTop: spacing.md,
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: "#111827",
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+  },
+  secondaryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: fontSizes.sm,
+  },
+  deleteButton: {
+    flex: 1,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+  },
+  deleteButtonText: {
+    color: "#B91C1C",
+    fontWeight: "700",
+    fontSize: fontSizes.sm,
+  },
+  detailsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  detailsTitle: {
+    fontSize: fontSizes.base,
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: spacing.sm,
-    lineHeight: ms(20),
+  },
+  detailsLine: {
+    fontSize: fontSizes.sm,
+    color: "#374151",
+    marginBottom: spacing.xs,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });

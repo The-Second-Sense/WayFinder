@@ -18,6 +18,21 @@ import {
 import Svg, { G, Path } from "react-native-svg";
 import svgPaths from "../hooks/svg-q8nt6t0xms";
 import { apiService } from "./(tabs)/apiService";
+
+// Hide native password toggle only when running in a browser environment.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input[type="password"]::-webkit-credentials-auto-fill-button,
+    input[type="password"]::-webkit-outer-autofill-button {
+      display: none !important;
+    }
+    input[type="password"]::-ms-reveal {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 import { useAuth } from "./contexts/AuthContext";
 import { spacing, fontSizes, borderRadius, ms, wp, hp } from "@/constants/responsive";
 

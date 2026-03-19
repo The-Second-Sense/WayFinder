@@ -56,6 +56,7 @@ export interface TransactionRequest {
   currency?: string;
   description?: string;
   voiceFingerprint?: number[];
+  transferPin?: string;
 }
 
 export interface AccountDto {
@@ -119,6 +120,58 @@ export interface VoiceProcessResponse {
   guidanceSteps?: any[];
   actionData?: any;
   navigateToScreen?: string;
+}
+
+export interface ProviderDto {
+  id: string;
+  name: string;
+  category?: string;
+  targetAccountNumber?: string;
+  keywords?: string;
+}
+
+export type BillStatus = 'PENDING' | 'PAID' | 'OVERDUE';
+
+export interface BillDto {
+  id: string;
+  userId?: string;
+  providerId?: string;
+  providerName?: string;
+  providerCategory?: string;
+  billName: string;
+  amount: number;
+  currency?: string;
+  dueDate: string;
+  status: BillStatus;
+  accountNumber?: string;
+  description?: string;
+}
+
+export interface CreateBillRequest {
+  userId: string;
+  providerId: string;
+  billName: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  accountNumber?: string;
+  description?: string;
+}
+
+export interface BillQueryFilters {
+  providerId?: string;
+  providerName?: string;
+  category?: string;
+  status?: BillStatus;
+}
+
+export interface ConfirmPlataFacturiRequest {
+  userId: string;
+  confirmed: boolean;
+  targetAccountNumber: string;
+  amount: number;
+  currency: string;
+  description?: string;
 }
 
 class ApiService {
@@ -670,9 +723,13 @@ class ApiService {
     targetAccountNumber?: string;
     amount?: number;
     currency?: string;
-    transferPin?: string;
+    description?: string;
   }): Promise<any> {
     try {
+      const targetAccountNumber = payload.targetAccountNumber?.trim();
+      if (!targetAccountNumber) {
+        throw new Error('targetAccountNumber is required');
+      }
       console.log('[confirmTransfer] Payload:', JSON.stringify(payload));
       const response = await fetch(`${this.baseUrl}/voice/confirm-transfer`, {
         method: 'POST',
@@ -680,6 +737,31 @@ class ApiService {
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error('Failed to confirm transfer');
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async confirmPlataFacturi(payload: ConfirmPlataFacturiRequest): Promise<any> {
+    try {
+      const targetAccountNumber = payload.targetAccountNumber?.trim();
+      if (!targetAccountNumber) {
+        throw new Error('targetAccountNumber is required');
+      }
+      if (!Number.isFinite(payload.amount)) {
+        throw new Error('amount is required');
+      }
+      if (!payload.currency?.trim()) {
+        throw new Error('currency is required');
+      }
+      console.log('[confirmPlataFacturi] Payload:', JSON.stringify(payload));
+      const response = await fetch(`${this.baseUrl}/voice/confirm-plata-facturi`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error('Failed to confirm bill payment');
       return await response.json();
     } catch (error) {
       throw error;
@@ -791,6 +873,247 @@ class ApiService {
       }
 
       return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Provider endpoints
+  async getProviders(): Promise<ProviderDto[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/providers`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch providers');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async findProviderByName(name: string): Promise<ProviderDto> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/providers/search/by-name?name=${encodeURIComponent(name)}`,
+        {
+          method: 'GET',
+          headers: this.getHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to match provider by name');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async searchProviders(name: string): Promise<ProviderDto[]> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/providers/search/multiple?name=${encodeURIComponent(name)}`,
+        {
+          method: 'GET',
+          headers: this.getHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to search providers');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Bills endpoints
+  async createBill(payload: CreateBillRequest): Promise<BillDto> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to create bill');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getPendingBillsByUserId(userId: string): Promise<BillDto[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills/user/${userId}/pending`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending bills');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getPendingBillsByProviderName(userId: string, providerName: string): Promise<BillDto[]> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/bills/user/${userId}/provider?name=${encodeURIComponent(providerName)}`,
+        {
+          method: 'GET',
+          headers: this.getHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to fetch provider bills');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getPendingBillsByCategory(userId: string, category: string): Promise<BillDto[]> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/bills/user/${userId}/category?category=${encodeURIComponent(category)}`,
+        {
+          method: 'GET',
+          headers: this.getHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to fetch category bills');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getBillsByUserIdFiltered(userId: string, filters: BillQueryFilters): Promise<BillDto[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters.providerId) params.append('providerId', filters.providerId);
+      if (filters.providerName) params.append('providerName', filters.providerName);
+      if (filters.category) params.append('category', filters.category);
+      if (filters.status) params.append('status', filters.status);
+
+      const query = params.toString();
+      const url = `${this.baseUrl}/bills/user/${userId}${query ? `?${query}` : ''}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to fetch filtered bills');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getAllBillsByUserId(userId: string): Promise<BillDto[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills/user/${userId}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch bills');
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getBillById(billId: string): Promise<BillDto> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills/${billId}`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to fetch bill');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async updateBillStatus(billId: string, status: BillStatus): Promise<BillDto> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills/${billId}/status?status=${encodeURIComponent(status)}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to update bill status');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteBill(billId: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bills/${billId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(false),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Failed to delete bill');
+      }
     } catch (error) {
       throw error;
     }

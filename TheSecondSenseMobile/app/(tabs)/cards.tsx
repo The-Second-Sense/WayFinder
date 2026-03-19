@@ -78,12 +78,15 @@ const CardsScreen = () => {
   };
 
   const handleConfirmAddCard = () => {
+    const linkedAccount = resolveLinkedAccount(sourceAccountId);
+
     setCards((prev) => [
       ...prev,
       generateMockCard(user?.name ?? "User", sourceAccountId, {
         scheme: newScheme,
         cardType: newCardType,
         cardFormat: newCardFormat,
+        iban: linkedAccount?.accountNumber,
       }),
     ]);
     setShowAddModal(false);
@@ -101,32 +104,60 @@ const CardsScreen = () => {
     setCards((prev) => prev.filter((card) => card.id !== cardId));
   };
 
-  const resolveAccountLabel = (linkedAccountId: number | null) => {
-    if (linkedAccountId == null) return null;
-
-    const linkedAccount = accounts.find(
-      (account) => account.accountId === linkedAccountId
+  const resolveLinkedAccount = (linkedAccountId: number | null) => {
+    if (accounts.length === 0) return null;
+    if (linkedAccountId == null) return accounts[0];
+    return (
+      accounts.find((account) => account.accountId === linkedAccountId) ??
+      accounts[0]
     );
+  };
 
-    if (!linkedAccount) {
-      return `Cont #${linkedAccountId}`;
-    }
+  const resolveAccountLabel = (linkedAccountId: number | null) => {
+    const linkedAccount = resolveLinkedAccount(linkedAccountId);
+    if (!linkedAccount) return null;
 
     return linkedAccount.accountNumber
       ? `Cont ${linkedAccount.accountNumber}`
-      : `Cont #${linkedAccountId}`;
+      : `Cont #${linkedAccount.accountId}`;
+  };
+
+  const resolveDisplayedCardNumber = (card: MockCard) => {
+    const linkedAccount = resolveLinkedAccount(card.linkedAccountId);
+    const accountNumber = linkedAccount?.accountNumber?.trim();
+
+    if (accountNumber) {
+      return accountNumber;
+    }
+
+    return card.maskedPan;
   };
 
   const formatIban = (iban: string) =>
     iban.replace(/(.{4})/g, "$1 ").trim();
 
+  const formatBalance = (balance: number | null, currency: MockCard["currency"]) => {
+    if (balance == null) return "N/A";
+    return `${balance.toFixed(2)} ${currency}`;
+  };
+
   const renderItem = ({ item }: { item: MockCard }) => {
     const isYellow = item.color === "#FFED00" || item.color === "#F5D908";
     const textColor = isYellow ? "#1A1A1A" : "#FFFFFF";
     const accountLabel = resolveAccountLabel(item.linkedAccountId);
+    const displayedCardNumber = resolveDisplayedCardNumber(item);
 
     return (
-      <View style={[styles.card, { backgroundColor: item.color }]}>
+      <TouchableOpacity
+        activeOpacity={0.95}
+        onPress={() =>
+          router.push({
+            pathname: "/(tabs)/card-details",
+            params: { cardId: item.id },
+          })
+        }
+        style={[styles.card, { backgroundColor: item.color }]}
+      >
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderMain}>
             <Text style={[styles.cardType, { color: textColor }]}>{item.scheme}</Text>
@@ -152,13 +183,8 @@ const CardsScreen = () => {
         </View>
 
         <Text style={[styles.cardNumber, { color: textColor }]}>
-          {item.maskedPan}
+          {displayedCardNumber}
         </Text>
-        {!!item.iban && (
-          <Text style={[styles.cardIban, { color: isYellow ? "#555" : "rgba(255,255,255,0.65)" }]}>
-            {formatIban(item.iban)}
-          </Text>
-        )}
 
         <View style={styles.cardFooter}>
           <View>
@@ -215,7 +241,7 @@ const CardsScreen = () => {
             <Text style={[styles.cardActionText, { color: textColor }]}>Șterge</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

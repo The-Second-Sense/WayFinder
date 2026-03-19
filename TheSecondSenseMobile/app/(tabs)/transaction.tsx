@@ -46,7 +46,8 @@ const TransactionScreen = () => {
   const [contactSearch, setContactSearch] = useState("");
   const [sourceAccountId, setSourceAccountId] = useState<number | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
-  const [transferPin, setTransferPin] = useState("");
+  const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [pendingTransfer, setPendingTransfer] = useState<any>(null);
 
   useEffect(() => {
@@ -189,7 +190,7 @@ const TransactionScreen = () => {
                   </TouchableOpacity>
                 </View>
                 <TextInput
-                  placeholder={recipientType === 'iban' ? "RO00 BTRL 0000..." : "+40XXXXXXXXX"}
+                  placeholder={recipientType === 'iban' ? "RO49 RZBR 1B31 0075 9384 0000" : "+40XXXXXXXXX"}
                   value={iban}
                   onChangeText={(text) => {
                     if (recipientType === 'phone') {
@@ -258,7 +259,6 @@ const TransactionScreen = () => {
                     Alert.alert('Eroare', 'Suma introdusă nu este validă.');
                     return;
                   }
-                  // Store transfer details and show PIN modal instead of submitting
                   setPendingTransfer({
                     sourceAccountId,
                     recipientAccountNumber: iban,
@@ -266,7 +266,8 @@ const TransactionScreen = () => {
                     currency: 'RON',
                     description: description || undefined,
                   });
-                  setTransferPin("");
+                  setPin('');
+                  setShowPin(false);
                   setShowPinModal(true);
                 }}
                 disabled={isSubmitting}
@@ -375,58 +376,73 @@ const TransactionScreen = () => {
         </SafeAreaView>
       </Modal>
 
-      {/* PIN MODAL */}
-      <Modal visible={showPinModal} animationType="fade" transparent>
-        <View style={styles.pinModalOverlay}>
-          <View style={styles.pinModalContainer}>
-            <Text style={styles.pinModalTitle}>PIN de Transfer</Text>
+      {/* PIN Modal for Manual Transfers */}
+      <Modal
+        visible={showPinModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPinModal(false);
+          setPendingTransfer(null);
+          setPin('');
+        }}
+      >
+        <Pressable
+          style={styles.pinModalOverlay}
+          onPress={() => {
+            setShowPinModal(false);
+            setPendingTransfer(null);
+            setPin('');
+          }}
+        >
+          <Pressable style={styles.pinModalContainer}>
+            <Text style={styles.pinModalTitle}>Introduceți PIN-ul de Transfer</Text>
             <Text style={styles.pinModalSubtitle}>
-              Introdu codul PIN de 4 cifre pentru a confirma transferul
+              PIN-ul este necesar pentru a autoriza transferul
             </Text>
 
-            <TextInput
-              placeholder="0000"
-              value={transferPin}
-              onChangeText={setTransferPin}
-              keyboardType="numeric"
-              maxLength={4}
-              secureTextEntry
-              style={styles.pinInput}
-              editable={!isSubmitting}
-            />
+            <View style={styles.pinInputWrapper}>
+              <TextInput
+                placeholder="PIN (4 cifre)"
+                value={pin}
+                onChangeText={(text) => setPin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+                style={styles.pinInput}
+                secureTextEntry={!showPin}
+                keyboardType="numeric"
+                maxLength={4}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPin((prev) => !prev)}
+                style={styles.pinToggleButton}
+              >
+                <Text style={styles.pinToggleButtonText}>{showPin ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.pinModalButtons}>
               <TouchableOpacity
-                style={[
-                  styles.pinButton,
-                  styles.pinButtonCancel,
-                  isSubmitting && styles.pinButtonDisabled,
-                ]}
+                style={[styles.pinButtonCancel]}
                 onPress={() => {
                   setShowPinModal(false);
                   setPendingTransfer(null);
-                  setTransferPin("");
+                  setPin('');
+                  setShowPin(false);
                 }}
-                disabled={isSubmitting}
               >
                 <Text style={styles.pinButtonCancelText}>Anulează</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.pinButton,
-                  styles.pinButtonConfirm,
-                  (transferPin.length !== 4 || isSubmitting) && styles.pinButtonDisabled,
-                ]}
+                style={[styles.pinButtonConfirm, pin.length !== 4 && styles.pinButtonDisabled]}
                 onPress={async () => {
-                  if (!transferPin || transferPin.length !== 4) {
-                    Alert.alert('Eroare', 'PIN-ul trebuie să aibă 4 cifre');
+                  if (pin.length !== 4) {
+                    Alert.alert('Eroare', 'PIN-ul trebuie să fie 4 cifre');
                     return;
                   }
                   setIsSubmitting(true);
                   try {
                     await apiService.sendMoney({
                       ...pendingTransfer,
-                      transferPin,
+                      transferPin: pin,
                     });
                     Alert.alert('Succes', 'Transfer realizat cu succes!');
                     setIban('');
@@ -434,23 +450,25 @@ const TransactionScreen = () => {
                     setDescription('');
                     setShowPinModal(false);
                     setPendingTransfer(null);
-                    setTransferPin("");
+                    setPin('');
+                    setShowPin(false);
                   } catch (error) {
                     Alert.alert('Eroare', error instanceof Error ? error.message : 'Transfer-ul a eșuat');
                   } finally {
                     setIsSubmitting(false);
                   }
                 }}
-                disabled={transferPin.length !== 4 || isSubmitting}
+                disabled={pin.length !== 4 || isSubmitting}
               >
                 <Text style={styles.pinButtonConfirmText}>
                   {isSubmitting ? 'Se procesează...' : 'Confirmă'}
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
+
     </SafeAreaView>
   );
 };
@@ -743,6 +761,16 @@ const styles = StyleSheet.create({
     letterSpacing: spacing.sm,
     marginBottom: spacing.lg,
   },
+  pinToggleButton: {
+    alignSelf: 'flex-end',
+    marginTop: -spacing.md,
+    marginBottom: spacing.md,
+  },
+  pinToggleButtonText: {
+    color: COLORS.textMuted,
+    fontWeight: '600',
+    fontSize: fontSizes.sm,
+  },
   pinModalButtons: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -771,6 +799,10 @@ const styles = StyleSheet.create({
   },
   pinButtonDisabled: {
     opacity: 0.5,
+  },
+  pinInputWrapper: {
+    position: 'relative',
+    marginBottom: spacing.md,
   },
 });
 

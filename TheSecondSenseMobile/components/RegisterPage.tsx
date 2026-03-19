@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,21 @@ import {
 import Svg, { G, Line, Path } from "react-native-svg";
 import { RootStackParamList, UserData } from "../app/(tabs)/dashboard";
 import svgPaths from "../hooks/svg-so1kn34rt7";
+
+// Hide native password toggle only when running in a browser environment.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input[type="password"]::-webkit-credentials-auto-fill-button,
+    input[type="password"]::-webkit-outer-autofill-button {
+      display: none !important;
+    }
+    input[type="password"]::-ms-reveal {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 type RegisterPageNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -96,6 +112,7 @@ export default function RegisterPage({ onRegister }: RegisterPageProps) {
   const [telefon, setTelefon] = useState("");
   const [email, setEmail] = useState("");
   const [parola, setParola] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -173,14 +190,23 @@ export default function RegisterPage({ onRegister }: RegisterPageProps) {
 
       {/* Parola Field */}
       <View style={styles.parolaContainer}>
-        <TextInput
-          placeholder="Parolă"
-          value={parola}
-          onChangeText={setParola}
-          style={styles.input}
-          secureTextEntry
-          placeholderTextColor="#999"
-        />
+        <View style={styles.passwordInputRow}>
+          <TextInput
+            placeholder="Parolă"
+            value={parola}
+            onChangeText={setParola}
+            style={[styles.input, styles.passwordInput]}
+            secureTextEntry={!showPassword}
+            placeholderTextColor="#999"
+          />
+          <TouchableOpacity
+            onPress={() => setShowPassword((prev) => !prev)}
+            style={styles.passwordToggleButton}
+            disabled={loading}
+          >
+            <Text style={styles.passwordToggleText}>{showPassword ? "Hide" : "Show"}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Error Message */}
@@ -312,6 +338,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#1a1a1a",
+  },
+  passwordInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingRight: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  passwordToggleButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  passwordToggleText: {
+    color: "#4b5563",
+    fontSize: 10,
+    fontWeight: "700",
   },
   errorText: {
     position: "absolute",

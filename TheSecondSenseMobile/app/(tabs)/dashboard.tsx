@@ -3,7 +3,6 @@ import { router, useFocusEffect } from "expo-router";
 import { TutorialTarget } from "@/tutorial/TutorialTarget";
 import { spacing, fontSizes, borderRadius, ms, iconSizes } from "@/constants/responsive";
 import * as Speech from "expo-speech";
-import Voice from "@react-native-voice/voice";
 import {
   Building,
   CreditCard,
@@ -34,15 +33,88 @@ import {
 const voiceSTTAvailable =
   Platform.OS !== "web" &&
   (!!NativeModules.RCTVoice || !!NativeModules.Voice);
+
+// Expo Go does not include this native module; load it only when available.
+let Voice: any = null;
+if (voiceSTTAvailable) {
+  try {
+    Voice = require("@react-native-voice/voice").default;
+  } catch {
+    Voice = null;
+  }
+}
+
+// Hide native password toggle only when running in a browser environment.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input[type="password"]::-webkit-credentials-auto-fill-button,
+    input[type="password"]::-webkit-outer-autofill-button {
+      display: none !important;
+    }
+    input[type="password"]::-ms-reveal {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+const hasVoiceSTT = voiceSTTAvailable && !!Voice;
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AccountOverview } from "@/components/AccountOverview";
 import { TransactionList } from "@/components/TransactionList";
 import { QuickActions } from "@/components/QuickActions";
 import { useAuth } from "../contexts/AuthContext";
-import { apiService, ContactLiteDto, VoiceCandidate } from "./apiService";
+import { apiService, BillDto, ContactLiteDto, ProviderDto, VoiceCandidate } from "./apiService";
 import { fetchPhonebookContacts } from "@/hooks/usePhonebookContacts";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+
+type BillPaymentStep =
+  | "idle"
+  | "provider_selection"
+  | "bill_selection"
+  | "amount_input"
+  | "confirmation";
+
+const BILL_CATEGORY_KEYWORDS: Record<string, string[]> = {
+  electricity: ["electricitate", "curent", "electrica", "enel", "energie", "lumina", "lumină"],
+  gas: ["gaz", "incalzire", "încălzire", "heating", "eon", "engie"],
+  water: ["apa", "apă", "water", "apa nova", "canal"],
+  internet: ["internet", "digi", "vodafone", "orange", "cablu", "tv", "broadband"],
+  telecom: ["telefon", "mobil", "carte", "plan", "abonament"],
+};
+
+const normalizeText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const extractAmountFromText = (text: string): number | undefined => {
+  const amountMatch = normalizeText(text).match(/(\d+(?:[.,]\d+)?)/);
+  if (!amountMatch?.[1]) return undefined;
+  const parsed = Number(amountMatch[1].replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const extractCategoryFromText = (text: string): string | null => {
+  const normalized = normalizeText(text);
+  for (const [category, keywords] of Object.entries(BILL_CATEGORY_KEYWORDS)) {
+    if (keywords.some((keyword) => normalized.includes(normalizeText(keyword)))) {
+      return category;
+    }
+  }
+  return null;
+};
+
+const isBillIntent = (text: string) => {
+  const normalized = normalizeText(text);
+  return (
+    normalized.includes("factur") ||
+    normalized.includes("plat") ||
+    extractCategoryFromText(normalized) !== null
+  );
+};
 
 export default function DashboardScreen() {
   const { token, user, logout } = useAuth();
@@ -70,8 +142,6 @@ export default function DashboardScreen() {
 
   const [voiceSessionId] = useState(Math.random().toString());
   const [pendingAction, setPendingAction] = useState<any>(null);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [transferPin, setTransferPin] = useState('');
   const [pendingCommand, setPendingCommand] = useState<string>(""); // Track the command waiting for confirmation
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [isListeningForCommand, setIsListeningForCommand] = useState(false); // Track if waiting for user to speak
@@ -87,6 +157,10 @@ export default function DashboardScreen() {
   const [voiceCandidates, setVoiceCandidates] = useState<VoiceCandidate[]>([]);
   const [showCandidateList, setShowCandidateList] = useState(false);
   const [lastVoiceResponse, setLastVoiceResponse] = useState<any>(null); // stores full backend response
+  const [providerMatches, setProviderMatches] = useState<ProviderDto[]>([]);
+  const [billMatches, setBillMatches] = useState<BillDto[]>([]);
+  const [manualBillAmount, setManualBillAmount] = useState("");
+  const [billPaymentStep, setBillPaymentStep] = useState<BillPaymentStep>("idle");
   const contactsRef = useRef<ContactLiteDto[]>([])
 
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
@@ -171,6 +245,257 @@ export default function DashboardScreen() {
     return map[screen.toUpperCase()] ?? `/${screen.toLowerCase()}`;
   };
 
+  const resetBillFlowState = () => {
+    setProviderMatches([]);
+    setBillMatches([]);
+    setManualBillAmount("");
+    setBillPaymentStep("idle");
+  };
+
+  const resolveProviderTargetAccount = async (providerId?: string, providerName?: string) => {
+    if (!providerId && !providerName) return undefined;
+    try {
+      const providers = await apiService.getProviders();
+      const matched = providerId
+        ? providers.find((provider) => provider.id === providerId)
+        : providers.find((provider) => normalizeText(provider.name) === normalizeText(providerName || ""));
+      return matched?.targetAccountNumber;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const prepareBillConfirmation = async (
+    bill: BillDto,
+    preferredAmount?: number,
+    knownTargetAccountNumber?: string
+  ) => {
+    const amount = preferredAmount ?? bill.amount;
+    const targetAccountNumber =
+      knownTargetAccountNumber ??
+      (await resolveProviderTargetAccount(bill.providerId, bill.providerName));
+
+    setPendingAction({
+      actionType: "bill-payment",
+      billId: bill.id,
+      providerId: bill.providerId,
+      providerName: bill.providerName,
+      targetAccountNumber,
+      amount,
+      currency: bill.currency ?? "RON",
+      description: bill.billName,
+      recipientName: bill.providerName ?? "furnizor",
+    });
+    setRequiresConfirmation(true);
+    setBackendResponded(true);
+    setBillPaymentStep("confirmation");
+
+    const providerLabel = bill.providerName ?? "furnizor";
+    const msg = `Confirmați plata de ${amount} ${bill.currency ?? "RON"} la ${providerLabel}?`;
+    setBotMessage(msg);
+    Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+  };
+
+  const loadBillsForProvider = async (provider: ProviderDto, preferredAmount?: number) => {
+    if (!user?.id) return;
+    let bills: BillDto[] = [];
+    try {
+      bills = await apiService.getPendingBillsByProviderName(user.id, provider.name);
+    } catch {
+      bills = await apiService.getBillsByUserIdFiltered(user.id, {
+        providerId: provider.id,
+        status: "PENDING",
+      });
+    }
+
+    if (bills.length === 0) {
+      setPendingAction({
+        actionType: "bill-payment",
+        providerId: provider.id,
+        providerName: provider.name,
+        targetAccountNumber: provider.targetAccountNumber,
+        amount: preferredAmount,
+        currency: "RON",
+        description: `Plată factură ${provider.name}`,
+        recipientName: provider.name,
+      });
+
+      if (preferredAmount) {
+        setRequiresConfirmation(true);
+        setBackendResponded(true);
+        setBillPaymentStep("confirmation");
+        const msg = `Confirmați plata de ${preferredAmount} RON la ${provider.name}?`;
+        setBotMessage(msg);
+        Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+      } else {
+        setBillPaymentStep("amount_input");
+        setBackendResponded(true);
+        setRequiresConfirmation(false);
+        const msg = `Nu aveți facturi la ${provider.name}. Introduceți suma pe care doriți s-o plătiți.`;
+        setBotMessage(msg);
+        Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+      }
+      return;
+    }
+
+    if (bills.length === 1) {
+      await prepareBillConfirmation(bills[0], preferredAmount, provider.targetAccountNumber);
+      return;
+    }
+
+    setBillMatches(bills);
+    setPendingAction((prev: any) => ({
+      ...(prev || {}),
+      actionType: "bill-payment",
+      providerId: provider.id,
+      providerName: provider.name,
+      targetAccountNumber: provider.targetAccountNumber,
+      currency: "RON",
+      amount: preferredAmount,
+    }));
+    setBillPaymentStep("bill_selection");
+    setBackendResponded(true);
+    setRequiresConfirmation(false);
+
+    const msg = `Am găsit mai multe facturi la ${provider.name}. Alegeți factura pe care doriți să o plătiți.`;
+    setBotMessage(msg);
+    Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+  };
+
+  const handleBillIntentFlow = async (transcribedText: string) => {
+    if (!user?.id) return false;
+
+    if (!isBillIntent(transcribedText)) {
+      return false;
+    }
+
+    resetBillFlowState();
+    const preferredAmount = extractAmountFromText(transcribedText);
+    const category = extractCategoryFromText(transcribedText);
+
+    if (category) {
+      let categoryBills: BillDto[] = [];
+      try {
+        categoryBills = await apiService.getPendingBillsByCategory(user.id, category);
+      } catch {
+        categoryBills = await apiService.getBillsByUserIdFiltered(user.id, {
+          category,
+          status: "PENDING",
+        });
+      }
+
+      if (categoryBills.length === 0) {
+        setPendingAction({
+          actionType: "bill-payment",
+          category,
+          amount: preferredAmount,
+          currency: "RON",
+          description: `Plată factură ${category}`,
+          recipientName: category,
+        });
+
+        if (preferredAmount) {
+          setRequiresConfirmation(true);
+          setBackendResponded(true);
+          setBillPaymentStep("confirmation");
+          const msg = `Confirmați plata de ${preferredAmount} RON pentru ${category}?`;
+          setBotMessage(msg);
+          Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+        } else {
+          setBillPaymentStep("amount_input");
+          setBackendResponded(true);
+          const msg = `Nu aveți facturi la ${category}. Introduceți suma pe care doriți s-o plătiți.`;
+          setBotMessage(msg);
+          Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+        }
+        return true;
+      }
+
+      if (categoryBills.length === 1) {
+        await prepareBillConfirmation(categoryBills[0], preferredAmount);
+        return true;
+      }
+
+      setBillMatches(categoryBills);
+      setPendingAction({
+        actionType: "bill-payment",
+        category,
+        amount: preferredAmount,
+        currency: "RON",
+      });
+      setBillPaymentStep("bill_selection");
+      setBackendResponded(true);
+      setRequiresConfirmation(false);
+
+      const msg = `Am găsit mai multe facturi la ${category}. Alegeți factura dorită.`;
+      setBotMessage(msg);
+      Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+      return true;
+    }
+
+    const normalized = normalizeText(transcribedText);
+    const providerTokenMatch = normalized.match(/(?:la|catre)\s+([a-z0-9\s\.\-&]+)/);
+    const providerQuery = providerTokenMatch?.[1]?.trim() || normalized.replace(/[^a-z0-9\s\.\-&]/g, " ").trim();
+
+    if (!providerQuery) {
+      return false;
+    }
+
+    let resolvedProvider: ProviderDto | null = null;
+    try {
+      resolvedProvider = await apiService.findProviderByName(providerQuery);
+    } catch {
+      setBackendResponded(true);
+      setRequiresConfirmation(false);
+      const msg = "Furnizor incorect. Verificați numele furnizorului și încercați din nou.";
+      setBotMessage(msg);
+      Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+      return true;
+    }
+
+    await loadBillsForProvider(resolvedProvider, preferredAmount);
+    return true;
+  };
+
+  const handleBillProviderSelection = async (provider: ProviderDto) => {
+    setProviderMatches([]);
+    const preferredAmount = Number.isFinite(Number(pendingAction?.amount))
+      ? Number(pendingAction.amount)
+      : undefined;
+    await loadBillsForProvider(provider, preferredAmount);
+  };
+
+  const handleBillSelection = async (bill: BillDto) => {
+    setBillMatches([]);
+    const preferredAmount = Number.isFinite(Number(pendingAction?.amount))
+      ? Number(pendingAction.amount)
+      : undefined;
+    await prepareBillConfirmation(bill, preferredAmount, pendingAction?.targetAccountNumber);
+  };
+
+  const handleBillAmountContinue = () => {
+    const parsedAmount = Number(manualBillAmount.replace(",", "."));
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert("Sumă invalidă", "Introduceți o sumă validă pentru plată.");
+      return;
+    }
+
+    setPendingAction((prev: any) => ({
+      ...(prev || {}),
+      actionType: "bill-payment",
+      amount: parsedAmount,
+      currency: prev?.currency ?? "RON",
+    }));
+    setBillPaymentStep("confirmation");
+    setRequiresConfirmation(true);
+    setBackendResponded(true);
+
+    const recipient = pendingAction?.providerName ?? pendingAction?.category ?? "furnizor";
+    const msg = `Confirmați plata de ${parsedAmount} RON la ${recipient}?`;
+    setBotMessage(msg);
+    Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+  };
+
   const processVoiceCommand = async (audioBase64: string, transcribedText: string) => {
     try {
       setIsProcessingVoice(true);
@@ -213,6 +538,83 @@ export default function DashboardScreen() {
         }
       } else {
         if (data.pendingConfirmation || data.status === 'PENDING_CONFIRMATION') {
+          const actionData = data.actionData ?? {};
+          const backendBills: BillDto[] = Array.isArray(actionData.bills) ? actionData.bills : [];
+          const selectedBillFromAction = actionData.selectedBill as BillDto | undefined;
+          const matchedBillFromList = selectedBillFromAction?.id
+            ? backendBills.find((bill) => bill.id === selectedBillFromAction.id)
+            : undefined;
+          const selectedBill: BillDto | null = selectedBillFromAction
+            ? { ...(matchedBillFromList ?? {}), ...selectedBillFromAction }
+            : backendBills[0] ?? null;
+          const billsFound = typeof actionData.billsFound === "number" ? actionData.billsFound : backendBills.length;
+          const pendingIntent = String((data as any).intent ?? actionData.intent ?? actionData.actionType ?? "").toUpperCase();
+          const backendBillFlow =
+            !!selectedBill ||
+            billsFound > 0 ||
+            pendingIntent.includes("PLATA_FACTURI") ||
+            pendingIntent.includes("BILL");
+
+          if (backendBillFlow) {
+            const billAmountRaw =
+              selectedBill?.amount ??
+              backendBills[0]?.amount ??
+              actionData.amount ??
+              actionData.sum ??
+              actionData.suma;
+            const parsedBillAmount = Number(billAmountRaw);
+            const billAmount = Number.isFinite(parsedBillAmount) && parsedBillAmount > 0
+              ? parsedBillAmount
+              : undefined;
+            const billCurrency = selectedBill?.currency ?? actionData.currency ?? "RON";
+            const providerName =
+              selectedBill?.providerName ??
+              backendBills[0]?.providerName ??
+              actionData.providerName ??
+              "furnizor";
+            const billDescription =
+              selectedBill?.description ??
+              selectedBill?.billName ??
+              actionData.description ??
+              `Plata Factură ${providerName}`;
+            const providerId = selectedBill?.providerId ?? actionData.providerId;
+            const targetAccountNumber =
+              (selectedBill as any)?.targetAccountNumber ??
+              actionData.targetAccountNumber ??
+              (await resolveProviderTargetAccount(providerId, providerName));
+            const shouldSelectBill = backendBills.length > 1;
+            const shouldConfirmDirectly = !shouldSelectBill;
+
+            setPendingOperationId(data.pendingOperationId ?? null);
+            setPendingAction({
+              actionType: "bill-payment",
+              billId: selectedBill?.id ?? actionData.billId,
+              providerId,
+              providerName,
+              targetAccountNumber,
+              amount: billAmount,
+              currency: billCurrency,
+              description: billDescription,
+              recipientName: providerName,
+            });
+
+            if (shouldSelectBill) {
+              setBillMatches(backendBills);
+              setBillPaymentStep("bill_selection");
+              setRequiresConfirmation(false);
+            } else {
+              setBillMatches([]);
+              setBillPaymentStep("confirmation");
+              setRequiresConfirmation(shouldConfirmDirectly);
+            }
+
+            const msg = data.message ?? "Confirmați plata facturii selectate?";
+            setBotMessage(msg);
+            Speech.speak(msg, { language: "ro-RO", rate: 0.9 });
+            setBackendResponded(true);
+            return;
+          }
+
           const beneficiary = data.matchedBeneficiaries?.[0];
           const amount = data.extractedEntities?.amount ?? data.actionData?.amount;
           const currency = data.extractedEntities?.currency ?? 'RON';
@@ -303,21 +705,77 @@ export default function DashboardScreen() {
       return;
     }
 
-    // User confirmed — request PIN
-    setShowPinModal(true);
-  };
-
-  const handlePinConfirm = async () => {
-    if (transferPin.length !== 4 || !/^\d{4}$/.test(transferPin)) {
-      Alert.alert('Eroare', 'PIN-ul trebuie să aibă exact 4 cifre');
-      return;
-    }
-
     setIsProcessingVoice(true);
-    setShowPinModal(false);
     try {
       let result: any;
-      if (pendingOperationId) {
+      if (pendingAction?.actionType === "bill-payment") {
+        const actionData = lastVoiceResponse?.actionData ?? {};
+        const fallbackSelectedBill = actionData.selectedBill as BillDto | undefined;
+        const fallbackBills: BillDto[] = Array.isArray(actionData.bills) ? actionData.bills : [];
+
+        let targetAccountNumber = pendingAction?.targetAccountNumber as string | undefined;
+        if (!targetAccountNumber) {
+          targetAccountNumber =
+            (fallbackSelectedBill as any)?.targetAccountNumber ??
+            actionData.targetAccountNumber;
+        }
+        if (!targetAccountNumber) {
+          targetAccountNumber = await resolveProviderTargetAccount(
+            pendingAction?.providerId,
+            pendingAction?.providerName,
+          );
+        }
+
+        const rawAmount =
+          pendingAction?.amount ??
+          fallbackSelectedBill?.amount ??
+          fallbackBills[0]?.amount ??
+          actionData.amount ??
+          actionData.sum ??
+          actionData.suma;
+        const parsedAmount = Number(rawAmount);
+        const amount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined;
+        const currency = (pendingAction?.currency as string | undefined) ?? "RON";
+        const description =
+          (pendingAction?.description as string | undefined) ??
+          `Plata Factură ${pendingAction?.providerName ?? fallbackSelectedBill?.providerName ?? "furnizor"}`;
+
+        if (!targetAccountNumber) {
+          throw new Error("Nu am găsit contul furnizorului pentru această plată.");
+        }
+
+        if (!amount || amount <= 0) {
+          throw new Error("Suma de plată este invalidă.");
+        }
+
+        console.log('[executeConfirmedAction] Bill payload fields:', JSON.stringify({
+          userId: user?.id ?? "",
+          confirmed: true,
+          targetAccountNumber,
+          amount,
+          currency,
+          description,
+        }));
+
+        result = await apiService.confirmPlataFacturi({
+          userId: user?.id ?? "",
+          confirmed: true,
+          targetAccountNumber,
+          amount,
+          currency,
+          description,
+        });
+
+        if (pendingAction?.billId) {
+          try {
+            await apiService.updateBillStatus(pendingAction.billId, "PAID");
+          } catch {
+            const warn = "Factura a fost plătită, dar nu s-a putut marca drept plătită.";
+            setBotMessage(warn);
+            Speech.speak(warn, { language: "ro-RO", rate: 0.9 });
+          }
+        }
+      } else if (pendingOperationId) {
         result = await apiService.confirmVoiceOp(pendingOperationId);
       } else {
         const payload = {
@@ -327,9 +785,9 @@ export default function DashboardScreen() {
           amount: pendingAction?.amount as number | undefined,
           currency: (pendingAction?.currency as string | undefined) ?? 'RON',
           description: pendingAction?.description as string | undefined,
-          transferPin,
         };
-        console.log('[executeConfirmedAction] Payload with PIN:', JSON.stringify(payload));
+        console.log('[executeConfirmedAction] Payload:', JSON.stringify(payload));
+        // Voice transactions no longer require PIN confirmation - voice auth is the primary security
         result = await apiService.confirmTransfer(payload);
       }
 
@@ -346,11 +804,7 @@ export default function DashboardScreen() {
       Speech.speak(msg, { language: 'ro-RO', rate: 0.9 });
       await fetchData();
     } catch (error: any) {
-      let errorMsg = 'A apărut o eroare la procesarea operațiunii.';
-      if (error?.message?.includes('PIN')) {
-        errorMsg = 'PIN incorect. Încearcă din nou.';
-        setTransferPin('');
-      }
+      const errorMsg = 'A apărut o eroare la procesarea operațiunii.';
       setBotMessage(errorMsg);
       Speech.speak(errorMsg, { language: 'ro-RO', rate: 0.9 });
     } finally {
@@ -358,34 +812,22 @@ export default function DashboardScreen() {
       setPendingOperationId(null);
       setVoiceCandidates([]);
       setShowCandidateList(false);
+      resetBillFlowState();
       setRequiresConfirmation(false);
       setIsProcessingVoice(false);
-      setTransferPin('');
     }
-  };
-
-  const handlePinCancel = () => {
-    setShowPinModal(false);
-    setTransferPin('');
-    setBotMessage('Transfer anulat.');
-    Speech.speak('Transfer anulat.', { language: 'ro-RO', rate: 0.9 });
-    setPendingAction(null);
-    setPendingOperationId(null);
-    setVoiceCandidates([]);
-    setShowCandidateList(false);
-    setRequiresConfirmation(false);
-    setIsProcessingVoice(false);
   };
 
   const cancelAction = () => {
     if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
-    if (voiceSTTAvailable) Voice.stop().catch(() => {});
+    if (hasVoiceSTT) Voice.stop().catch(() => {});
     pendingAudioBase64Ref.current = null;
     setPendingCommand("");
     setPendingAction(null);
     setPendingOperationId(null);
     setVoiceCandidates([]);
     setShowCandidateList(false);
+    resetBillFlowState();
     setRequiresConfirmation(false);
     setBackendResponded(false);
     setLastVoiceResponse(null);
@@ -405,6 +847,7 @@ export default function DashboardScreen() {
     setPendingCommand("");
     setBackendResponded(false);
     setLastVoiceResponse(null);
+    resetBillFlowState();
 
     // 1. AI speaks a prompt
     const prompt = "Te ascult. Spune comanda.";
@@ -420,7 +863,7 @@ export default function DashboardScreen() {
       await startRecording();
 
       // Start local speech-to-text (native only)
-      if (voiceSTTAvailable) {
+      if (hasVoiceSTT) {
         try {
           await Voice.start("ro-RO");
         } catch (e) {
@@ -440,14 +883,14 @@ export default function DashboardScreen() {
         }
 
         // Stop Voice STT — result arrives via onSpeechResults (ref is now set)
-        if (voiceSTTAvailable) {
+        if (hasVoiceSTT) {
           try { await Voice.stop(); } catch (e) {}
         }
 
         if (!audioBase64) {
           setBotMessage("Nu am putut capta audio. Încearcă din nou.");
          } 
-        else if (!voiceSTTAvailable) {
+        else if (!hasVoiceSTT) {
           const cmd = "(comandă vocală)";
           setPendingCommand(cmd);
           setBotMessage("Se procesează comanda...");
@@ -458,9 +901,9 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => {
-    if (!voiceSTTAvailable) return;
+    if (!hasVoiceSTT) return;
     // Local speech-to-text result handler
-    Voice.onSpeechResults = (e) => {
+    Voice.onSpeechResults = (e: any) => {
       const text = e.value?.[0] ?? "";
       if (text) {
         setUserTranscription(text);
@@ -485,17 +928,6 @@ export default function DashboardScreen() {
       Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
     };
   }, []);
-
-  // Guard: redirect to PIN setup if user doesn't have transferPin set
-  useEffect(() => {
-    console.log('[Dashboard] Guard check - user:', JSON.stringify(user));
-    if (user?.id && !user?.transferPin) {
-      console.log('[Dashboard] No transferPin detected, redirecting to PIN setup');
-      router.replace({ pathname: "/PinRegistration", params: { userId: user.id } });
-    } else {
-      console.log('[Dashboard] transferPin check passed, user can access dashboard');
-    }
-  }, [user?.id, user?.transferPin]);
 
   useEffect(() => {
     fetchData();
@@ -571,11 +1003,32 @@ export default function DashboardScreen() {
             <Text style={[styles.userName, { fontSize: fontSizes.xl }]}>
               {user?.name ?? "Utilizator"}
             </Text>
-            <TouchableOpacity onPress={() => setExecuteMode(!executeMode)}>
-              <Text style={{ color: "#007AFF", fontWeight: "600", fontSize: fontSizes.lg }}>
-                {executeMode ? "Mod Execuție" : "Mod Planificare"}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.modeSegmentedControl}>
+              <TouchableOpacity
+                style={[
+                  styles.modeSegment,
+                  !executeMode && styles.modeSegmentActive,
+                  styles.modeSegmentLeft,
+                ]}
+                onPress={() => setExecuteMode(false)}
+              >
+                <Text style={[styles.modeSegmentText, !executeMode && styles.modeSegmentTextActive]}>
+                  Guide
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeSegment,
+                  executeMode && styles.modeSegmentActive,
+                  styles.modeSegmentRight,
+                ]}
+                onPress={() => setExecuteMode(true)}
+              >
+                <Text style={[styles.modeSegmentText, executeMode && styles.modeSegmentTextActive]}>
+                  Act
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TouchableOpacity
             onPress={handleLogout}
@@ -794,6 +1247,61 @@ export default function DashboardScreen() {
               </View>
             )}
 
+            {billPaymentStep === "provider_selection" && providerMatches.length > 0 && !isProcessingVoice && (
+              <View style={styles.candidateList}>
+                <Text style={styles.candidateTitle}>Alege furnizorul:</Text>
+                {providerMatches.map((provider) => (
+                  <TouchableOpacity
+                    key={provider.id}
+                    style={styles.candidateItem}
+                    onPress={() => handleBillProviderSelection(provider)}
+                  >
+                    <Text style={styles.candidateItemText}>{provider.name}</Text>
+                    {!!provider.category && (
+                      <Text style={styles.candidateSubText}>{provider.category}</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {billPaymentStep === "bill_selection" && billMatches.length > 0 && !isProcessingVoice && (
+              <View style={styles.candidateList}>
+                <Text style={styles.candidateTitle}>Alege factura:</Text>
+                {billMatches.map((bill, index) => (
+                  <TouchableOpacity
+                    key={`${bill.id}-${index}`}
+                    style={styles.candidateItem}
+                    onPress={() => handleBillSelection(bill)}
+                  >
+                    <Text style={styles.candidateItemText}>
+                      {bill.providerName ?? "Furnizor"} - {bill.amount} {bill.currency ?? "RON"}
+                    </Text>
+                    {!!bill.description && (
+                      <Text style={styles.candidateSubText}>{bill.description}</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {billPaymentStep === "amount_input" && !isProcessingVoice && (
+              <View style={styles.billAmountContainer}>
+                <Text style={styles.candidateTitle}>Introduceți suma dorită</Text>
+                <TextInput
+                  style={styles.billAmountInput}
+                  value={manualBillAmount}
+                  onChangeText={setManualBillAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="Ex: 100"
+                  placeholderTextColor="#999"
+                />
+                <TouchableOpacity style={styles.billAmountButton} onPress={handleBillAmountContinue}>
+                  <Text style={styles.billAmountButtonText}>Continuă</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Post-backend confirmation - after backend responds with pendingConfirmation */}
             {backendResponded && requiresConfirmation && !isProcessingVoice && !showCandidateList && (
               <View style={styles.confirmBox}>
@@ -806,62 +1314,12 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* PIN Input Modal */}
-            <Modal visible={showPinModal} animationType="fade" transparent>
-              <View style={styles.pinModalOverlay}>
-                <View style={styles.pinModalContainer}>
-                  <Text style={styles.pinModalTitle}>PIN de Transfer</Text>
-                  <Text style={styles.pinModalSubtitle}>
-                    Introdu codul PIN de 4 cifre pentru a confirma transferul
-                  </Text>
-
-                  <TextInput
-                    placeholder="0000"
-                    value={transferPin}
-                    onChangeText={setTransferPin}
-                    keyboardType="numeric"
-                    maxLength={4}
-                    secureTextEntry
-                    style={styles.pinInput}
-                    editable={!isProcessingVoice}
-                  />
-
-                  <View style={styles.pinModalButtons}>
-                    <TouchableOpacity
-                      style={[
-                        styles.pinButton,
-                        styles.pinButtonCancel,
-                        isProcessingVoice && styles.pinButtonDisabled,
-                      ]}
-                      onPress={handlePinCancel}
-                      disabled={isProcessingVoice}
-                    >
-                      <Text style={styles.pinButtonCancelText}>Anulează</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.pinButton,
-                        styles.pinButtonConfirm,
-                        (transferPin.length !== 4 || isProcessingVoice) && styles.pinButtonDisabled,
-                      ]}
-                      onPress={handlePinConfirm}
-                      disabled={transferPin.length !== 4 || isProcessingVoice}
-                    >
-                      <Text style={styles.pinButtonConfirmText}>
-                        {isProcessingVoice ? 'Se procesează...' : 'Confirmă'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-
             {/* Close button */}
             <TouchableOpacity
               onPress={() => {
                 if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
                 if (isRecording) stopRecording();
-                if (voiceSTTAvailable) Voice.stop().catch(() => {});
+                if (hasVoiceSTT) Voice.stop().catch(() => {});
                 pendingAudioBase64Ref.current = null;
                 setIsVoiceModalVisible(false);
                 setIsListeningForCommand(false);
@@ -871,6 +1329,7 @@ export default function DashboardScreen() {
                 setPendingOperationId(null);
                 setVoiceCandidates([]);
                 setShowCandidateList(false);
+                resetBillFlowState();
                 setRequiresConfirmation(false);
                 setBackendResponded(false);
                 setLastVoiceResponse(null);
@@ -898,6 +1357,42 @@ const styles = StyleSheet.create({
   topHeader: {
     paddingHorizontal: 20,
     paddingVertical: 15,
+  },
+  modeSegmentedControl: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 999,
+    overflow: "hidden",
+    alignSelf: "flex-start",
+    backgroundColor: "#F3F4F6",
+  },
+  modeSegment: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    minWidth: ms(72),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeSegmentLeft: {
+    borderRightWidth: 1,
+    borderRightColor: "#D1D5DB",
+  },
+  modeSegmentRight: {
+    borderLeftWidth: 0,
+  },
+  modeSegmentActive: {
+    backgroundColor: "#FFED00",
+  },
+  modeSegmentText: {
+    color: "#4B5563",
+    fontWeight: "600",
+    fontSize: fontSizes.base,
+  },
+  modeSegmentTextActive: {
+    color: "#111827",
+    fontWeight: "700",
   },
   mainCardContainer: { paddingHorizontal: 16 },
   sectionContainer: { marginTop: 15 },
@@ -1049,6 +1544,35 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     marginTop: 2,
   },
+  billAmountContainer: {
+    width: "100%",
+    marginTop: spacing.md,
+    alignItems: "center",
+  },
+  billAmountInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSizes.base,
+    color: "#1A1A1A",
+    backgroundColor: "#fff",
+    marginTop: spacing.sm,
+  },
+  billAmountButton: {
+    marginTop: spacing.md,
+    backgroundColor: "#FFED00",
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  billAmountButtonText: {
+    color: "#1A1A1A",
+    fontWeight: "700",
+    fontSize: fontSizes.base,
+  },
   recordMicBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1158,6 +1682,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     width: '100%',
     color: '#1A1A1A',
+  },
+  pinToggleButton: {
+    alignSelf: 'flex-end',
+    marginTop: -spacing.md,
+    marginBottom: spacing.md,
+  },
+  pinToggleButtonText: {
+    color: '#4b5563',
+    fontWeight: '600',
+    fontSize: fontSizes.sm,
   },
   pinModalButtons: {
     flexDirection: 'row',

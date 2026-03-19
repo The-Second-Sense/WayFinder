@@ -4,6 +4,7 @@ export type MockCard = {
   label: string;
   holderName: string;
   maskedPan: string;
+  cvv: string;
   scheme: "VISA" | "MASTERCARD";
   cardType: "CREDIT" | "DEBIT";
   cardFormat: "FIZIC" | "VIRTUAL";
@@ -26,6 +27,10 @@ export function generateIban(): string {
   return `RO${check}${bankCode}${digits}`;
 }
 
+export function generateCvv(): string {
+  return Math.floor(100 + Math.random() * 900).toString();
+}
+
 export function generateMockCard(
   holderName: string,
   linkedAccountId: number | null,
@@ -33,6 +38,7 @@ export function generateMockCard(
     scheme?: "VISA" | "MASTERCARD";
     cardType?: "CREDIT" | "DEBIT";
     cardFormat?: "FIZIC" | "VIRTUAL";
+    iban?: string;
   }
 ): MockCard {
   const last4 = Math.floor(1000 + Math.random() * 9000).toString();
@@ -48,10 +54,11 @@ export function generateMockCard(
     label: "Card nou",
     holderName,
     maskedPan: `**** **** **** ${last4}`,
+    cvv: generateCvv(),
     scheme,
     cardType,
     cardFormat,
-    iban: generateIban(),
+    iban: options?.iban?.trim() || generateIban(),
     color,
     currency: "RON",
     isActive: true,

@@ -18,6 +18,21 @@ import { apiService } from "./apiService";
 import { useAuth } from "../contexts/AuthContext";
 import { spacing, fontSizes, borderRadius, ms, wp, hp } from "@/constants/responsive";
 
+// Hide native password toggle only when running in a browser environment.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input[type="password"]::-webkit-credentials-auto-fill-button,
+    input[type="password"]::-webkit-outer-autofill-button {
+      display: none !important;
+    }
+    input[type="password"]::-ms-reveal {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function Group() {
   return (
     <Svg width="515" height="366" viewBox="0 0 515 366" fill="none">
@@ -38,6 +53,7 @@ export default function Registration() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleRegistration = async () => {
     if (!fullname || !email || !parola || !telefon || fullname.trim() === "" || email.trim() === "" || parola.trim() === "" || telefon.trim() === "") {
@@ -122,14 +138,23 @@ export default function Registration() {
             placeholderTextColor="#999"
           />
 
-          <TextInput
-            placeholder="Parolă *"
-            value={parola}
-            onChangeText={setParola}
-            style={styles.input}
-            secureTextEntry={true}
-            placeholderTextColor="#999"
-          />
+          <View style={styles.secureInputWrapper}>
+            <TextInput
+              placeholder="Parolă *"
+              value={parola}
+              onChangeText={setParola}
+              style={[styles.input, styles.secureInput]}
+              secureTextEntry={!showPassword}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword((prev) => !prev)}
+              style={styles.toggleButton}
+              disabled={loading}
+            >
+              <Text style={styles.toggleButtonText}>{showPassword ? "Hide" : "Show"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.messageArea}>
@@ -168,9 +193,9 @@ export default function Registration() {
         </View>
       </ScrollView>
 
-      <View style={styles.homeIndicator}>
+      {/* <View style={styles.homeIndicator}>
         <View style={styles.indicatorBar} />
-      </View>
+      </View> */}
     </KeyboardAvoidingView>
   );
 }
@@ -211,6 +236,25 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     backgroundColor: "#f9f9f9",
     marginBottom: spacing.md,
+  },
+  secureInputWrapper: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  secureInput: {
+    paddingRight: spacing.xxxl,
+  },
+  toggleButton: {
+    position: "absolute",
+    right: spacing.md,
+    top: 0,
+    bottom: spacing.md,
+    justifyContent: "center",
+  },
+  toggleButtonText: {
+    color: "#4b5563",
+    fontWeight: "600",
+    fontSize: fontSizes.sm,
   },
   messageArea: {
     height: ms(30),
