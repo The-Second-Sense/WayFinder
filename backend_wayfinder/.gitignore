@@ -1,0 +1,66 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Security - Sensitive Configuration Files ###
+# Application properties with credentials and secrets
+**/application.properties
+**/application-*.properties
+application-test.properties
+application-prod.properties
+application-dev.properties
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# JWT and API keys
+jwt.secret
+*.key
+*.pem
+*.p12
+*.jks
+
+# Database credentials
+db.properties
+
+# Log files (may contain sensitive data)
+*.log
+logs/
+
+# Backup files
+*.bak
+*.backup
+

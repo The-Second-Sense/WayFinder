@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Maven
+target/
+*.jar
+*.war
+*.ear
+.m2/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+README.md
+CHANGELOG.md
+DOCUMENTATION_INDEX.md
+HELP.md
+
+# Build artifacts
+*.class
+*.log
+
+# Node (if you have frontend in same repo)
+node_modules/
+npm-debug.log
+
+# Environment
+.env
+.env.local
+
+# Railway
+railway.json
+Dockerfile
+.dockerignore
+

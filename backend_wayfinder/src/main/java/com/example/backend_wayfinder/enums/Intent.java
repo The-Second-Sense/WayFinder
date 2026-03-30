@@ -1,0 +1,27 @@
+package com.example.backend_wayfinder.enums;
+
+public enum Intent {
+
+
+    TRANSFER_MONEY,
+    CHECK_BALANCE,
+    VIEW_TRANSACTIONS,
+
+    ADD_BENEFICIARY,
+    VIEW_BENEFICIARIES,
+    REMOVE_BENEFICIARY,
+
+    VIEW_ACCOUNTS,
+    ACTIVATE_ACCOUNT,
+    DEACTIVATE_ACCOUNT,
+
+    PLATA_FACTURI,
+
+    HELP_TRANSFER,
+    HELP_BENEFICIARY,
+    HELP_ACCOUNT,
+    HELP_GENERAL,
+
+    UNKNOWN
+}
+
