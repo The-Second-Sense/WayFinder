@@ -85,7 +85,7 @@ public class AiAgentServiceImpl implements AiAgentService {
                 if (!isVoiceValid) {
                     log.error("Voice authentication failed for user ID: {}", user.getUserId());
                     return VoiceCommandResponse.builder()
-                            .success(false).message("Voice authentication failed").build();
+                            .success(false).message("Autentificarea vocală eșuată").build();
                 }
             }
 
@@ -182,17 +182,17 @@ public class AiAgentServiceImpl implements AiAgentService {
     @Override
     public String getGuidanceForIntent(Intent intent) {
         return switch (intent) {
-            case TRANSFER_MONEY -> "To transfer money, say: 'Transfer [amount] to [beneficiary name]'. " +
-                    "Make sure you have added the beneficiary first and have sufficient balance.";
-            case CHECK_BALANCE -> "To check your balance, I can show you the balance of all your accounts. " +
-                    "You can also ask for a specific account balance.";
-            case VIEW_TRANSACTIONS -> "To view your transactions, I can show you recent transactions or " +
-                    "transactions within a specific date range.";
-            case ADD_BENEFICIARY -> "To add a beneficiary, say: 'Add beneficiary [name] with account number [number]'. " +
-                    "This will save the contact for future transfers.";
-            case VIEW_BENEFICIARIES -> "I can show you all your saved beneficiaries. " +
-                    "This helps you quickly transfer money to people you send money to often.";
-            case VIEW_ACCOUNTS -> "I can show you all your accounts including their balances and status.";
+            case TRANSFER_MONEY -> "Pentru a transfera bani, spune: 'Transferă [sumă] la [nume beneficiar]'. " +
+                    "Asigură-te că ai adăugat beneficiarul și că ai sold suficient.";
+            case CHECK_BALANCE -> "Îți pot arăta soldul tuturor conturilor tale. " +
+                    "Poți cere, de asemenea, soldul unui cont specific.";
+            case VIEW_TRANSACTIONS -> "Îți pot arăta tranzacțiile tale recente sau " +
+                    "tranzacțiile dintr-un interval de date specific.";
+            case ADD_BENEFICIARY -> "Pentru a adăuga un beneficiar, spune: 'Adaugă beneficiar [nume] cu contul [număr]'. " +
+                    "Aceasta va salva contactul pentru transferuri viitoare.";
+            case VIEW_BENEFICIARIES -> "Îți pot arăta toți beneficiarii salvați. " +
+                    "Aceasta te ajută să transferi rapid bani către persoanele cărora le trimiți frecvent.";
+            case VIEW_ACCOUNTS -> "Îți pot arăta toate conturile tale, inclusiv soldurile și starea lor.";
             case HELP_TRANSFER -> "Transferurile îți permit să trimiți bani către alte conturi. " +
                     "Poți transfera către beneficiari salvați sau numere de cont noi. " +
                     "Sistemul va verifica vocea ta înainte de a procesa transferurile.";
@@ -231,7 +231,7 @@ public class AiAgentServiceImpl implements AiAgentService {
                 default -> VoiceCommandResponse.builder()
                         .aiMode(AiMode.AGENT).intent(intent)
                         .actionPerformed(false).success(false)
-                        .message("I cannot perform this action. " + getGuidanceForIntent(intent))
+                        .message("Nu pot executa această acțiune. " + getGuidanceForIntent(intent))
                         .build();
             };
         } catch (Exception e) {
@@ -239,7 +239,7 @@ public class AiAgentServiceImpl implements AiAgentService {
             return VoiceCommandResponse.builder()
                     .aiMode(AiMode.AGENT).intent(intent)
                     .actionPerformed(false).success(false)
-                    .message("Failed to execute action: " + e.getMessage())
+                    .message("Eroare la executarea acțiunii: " + e.getMessage())
                     .build();
         }
     }
@@ -409,6 +409,19 @@ public class AiAgentServiceImpl implements AiAgentService {
                 steps.add(GuidanceStep.builder().stepNumber(3).instruction("Apasă 'Dezactivează'")
                         .elementId("deactivate-account-button").screenName("accounts").icon("cancel").completed(false).build());
                 break;
+            case PLATA_FACTURI:
+                String providerKeyword = entities != null && entities.containsKey("factura")
+                        ? (String) entities.get("factura") : "";
+                steps.add(GuidanceStep.builder().stepNumber(1).instruction("Apasă butonul 'Plăti Facturi'")
+                        .elementId("nav-bills-button").screenName("home").icon("receipt_long").completed(false).build());
+                steps.add(GuidanceStep.builder().stepNumber(2).instruction("Selectează furnizor: " + (providerKeyword.isEmpty() ? "" : providerKeyword))
+                        .elementId("provider-selector").screenName("bills").expectedValue(providerKeyword)
+                        .icon("business").completed(false).build());
+                steps.add(GuidanceStep.builder().stepNumber(3).instruction("Alege factura din lista disponibilă")
+                        .elementId("bill-list").screenName("bills").icon("list").completed(false).build());
+                steps.add(GuidanceStep.builder().stepNumber(4).instruction("Apasă 'Confirmă Plata'")
+                        .elementId("confirm-bill-payment-button").screenName("bill-details").icon("check_circle").completed(false).build());
+                break;
             case HELP_TRANSFER:
                 steps.add(GuidanceStep.builder().stepNumber(1).instruction("Spune: 'Transferă [sumă] lei lui [beneficiar]'")
                         .elementId("voice-button").screenName("home").icon("mic").completed(false).build());
@@ -438,7 +451,8 @@ public class AiAgentServiceImpl implements AiAgentService {
 
     private String getNavigationScreen(Intent intent) {
         return switch (intent) {
-            case TRANSFER_MONEY, PLATA_FACTURI -> "transfer";
+            case TRANSFER_MONEY -> "transfer";
+            case PLATA_FACTURI -> "bills";
             case CHECK_BALANCE -> "dashboard";
             case VIEW_TRANSACTIONS -> "transactions";
             case ADD_BENEFICIARY -> "add-beneficiary";
@@ -454,7 +468,7 @@ public class AiAgentServiceImpl implements AiAgentService {
     private String getFirstButtonToHighlight(Intent intent) {
         return switch (intent) {
             case TRANSFER_MONEY -> "nav-transfer-button";
-            case PLATA_FACTURI -> "voice-button";
+            case PLATA_FACTURI -> "nav-bills-button";
             case CHECK_BALANCE -> "balance-card";
             case VIEW_TRANSACTIONS -> "nav-transactions-button";
             case ADD_BENEFICIARY, VIEW_BENEFICIARIES, REMOVE_BENEFICIARY -> "nav-beneficiaries-button";
@@ -482,8 +496,8 @@ public class AiAgentServiceImpl implements AiAgentService {
         AccountDto sourceAccount = accounts.stream().filter(AccountDto::getIsActive).findFirst()
                 .orElseThrow(() -> new RuntimeException("No active account found"));
 
-        BeneficiaryDto beneficiary;
-        String recipientIdentifier;
+        BeneficiaryDto beneficiary = null;
+        String recipientIdentifier = null;
 
         if (entities.containsKey("phoneNumber")) {
             String phoneNumber = (String) entities.get("phoneNumber");
@@ -504,10 +518,23 @@ public class AiAgentServiceImpl implements AiAgentService {
                             .nickname(recipientUser.getFullName()).build();
                     log.info("Found user with phone {}: {}", phoneNumber, recipientUser.getFullName());
                 } catch (Exception ex) {
+                    // Phone not found - offer IBAN fallback
+                    log.info("User/beneficiary not found with phone: {}. Offering IBAN fallback.", phoneNumber);
+                    Map<String, Object> actionData = new HashMap<>();
+                    actionData.put("description", entities.getOrDefault("description", ""));
+                    actionData.put("amount", amount);
+                    actionData.put("currency", "RON");
+                    actionData.put("recipientPhone", phoneNumber);
+                    actionData.put("requiresIbanEntry", true); // Flag for frontend
+
                     return VoiceCommandResponse.builder()
                             .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                            .actionPerformed(false).success(false)
-                            .message("Could not find user or beneficiary with phone number: " + phoneNumber).build();
+                            .actionPerformed(false).success(true)
+                            .pendingConfirmation(false)
+                            .extractedEntities(entities)
+                            .actionData(actionData)
+                            .message("Numărul de telefon " + phoneNumber + " nu este găsit pe Wayfinder. Te rog introdu IBAN-ul pentru transfer extern.")
+                            .build();
                 }
             }
         } else if (entities.containsKey("beneficiary")) {
@@ -521,64 +548,161 @@ public class AiAgentServiceImpl implements AiAgentService {
             }
             List<ContactLiteDto> contactMatches = contactCacheService.findByName(userId, beneficiaryName);
 
-            // Fallback: fuzzy matching for typos (e.g. "Pogdan" -> "Bogdan")
-            if (contactMatches.isEmpty()) {
+            // ✅ Check if user provided full name (2+ words)
+            // Full names: 0.90 threshold - catches ~1 letter typo (AI extraction errors)
+            // Single names: 0.93 threshold - very strict, catches minor typos only
+            boolean isFullName = beneficiaryName.trim().split("\\s+").length >= 2;
+            double similarityThreshold = isFullName ? 0.90 : 0.93;
+
+            log.info("Searching for beneficiary: '{}' (fullName={}, threshold={})",
+                     beneficiaryName, isFullName, similarityThreshold);
+
+            // Step 1a: Filter by similarity threshold
+            List<ContactLiteDto> exactMatches = new ArrayList<>();
+            if (!contactMatches.isEmpty()) {
+                for (ContactLiteDto contact : contactMatches) {
+                    double similarity = nameSimilarity(
+                        normalizeNameForMatch(contact.getName()),
+                        normalizeNameForMatch(beneficiaryName)
+                    );
+                    // Full names: 0.92+ (catches "Bogdan Ploesti" matching "Bogdan Ploiesti" but NOT "Bogdan Aiud")
+                    // Single names: 0.95+ (catches "Pogdan" matching "Bogdan")
+                    if (similarity >= similarityThreshold) {
+                        exactMatches.add(contact);
+                        log.debug("Match found: {} (similarity: {}, threshold: {})",
+                                 contact.getName(), similarity, similarityThreshold);
+                    }
+                }
+            }
+
+            // If we have matches above threshold, use those
+            if (!exactMatches.isEmpty()) {
+                contactMatches = exactMatches;
+                log.info("Using matches for '{}' with threshold {}", beneficiaryName, similarityThreshold);
+
+            } else if (contactMatches.isEmpty()) {
+                // No exact matches - try fuzzy matching with same threshold
                 List<ContactLiteDto> cachedContacts = contactCacheService.getContacts(userId);
-                contactMatches = rankContactsBySimilarity(cachedContacts, beneficiaryName, 0.84, 5);
+                contactMatches = rankContactsBySimilarity(cachedContacts, beneficiaryName, similarityThreshold, 10);
+
                 if (!contactMatches.isEmpty()) {
-                    log.info("Found {} fuzzy contact match(es) for '{}' (typo correction)", contactMatches.size(), beneficiaryName);
+                    log.info("Found {} fuzzy contact match(es) for '{}' (threshold: {})",
+                             contactMatches.size(), beneficiaryName, similarityThreshold);
+                } else {
+                    log.info("No contacts found for '{}' with threshold {}", beneficiaryName, similarityThreshold);
                 }
             }
 
             if (!contactMatches.isEmpty()) {
-                log.info("Found {} contact match(es) from phonebook cache for '{}'", contactMatches.size(), beneficiaryName);
+                log.info("Found {} contact match(es) from phonebook cache for '{}'",
+                         contactMatches.size(), beneficiaryName);
 
-                // Map ContactLiteDto → BeneficiaryDto so the frontend confirm flow works uniformly
-                List<BeneficiaryDto> contactAsBeneficiaries = new ArrayList<>();
+                // ✅ NEW: Validate ALL contacts exist in DB BEFORE showing confirm button
+                List<BeneficiaryDto> validatedBeneficiaries = new ArrayList<>();
+
                 for (ContactLiteDto c : contactMatches) {
-                    // Try to resolve phone → user → account within this app
                     String phone = c.getPhone();
                     String accountNumber = null;
                     String officialName = c.getName();
+                    boolean isWayfinderUser = false;
 
-                    if (phone != null && !phone.isBlank()) {
+                    // VALIDATION: Only proceed if phone is in valid E.164 format
+                    if (phone != null && !phone.isBlank() && phone.matches("^\\+\\d{1,3}\\d{4,14}$")) {
                         try {
                             UserEntity appUser = userRepository.findByPhoneNumber(phone).orElse(null);
                             if (appUser != null) {
+                                isWayfinderUser = true;
                                 List<AccountDto> appAccounts = accountService.getAccountsByUserId(appUser.getUserId());
-                                AccountDto appAccount = appAccounts.stream().filter(AccountDto::getIsActive).findFirst().orElse(null);
-                                if (appAccount != null) accountNumber = appAccount.getAccountNumber();
+
+                                // Check if user has active accounts
+                                if (appAccounts != null && !appAccounts.isEmpty()) {
+                                    AccountDto appAccount = appAccounts.stream()
+                                            .filter(AccountDto::getIsActive)
+                                            .findFirst()
+                                            .orElse(null);
+                                    if (appAccount != null) {
+                                        accountNumber = appAccount.getAccountNumber();
+                                        log.debug("Contact {} verified in DB with account: {}",
+                                                 officialName, accountNumber);
+                                    }
+                                } else {
+                                    log.warn("Contact {} ({}) has no active accounts", officialName, phone);
+                                }
                                 officialName = appUser.getFullName();
+                            } else {
+                                log.warn("Contact {} ({}) NOT found in database - not a Wayfinder user",
+                                        officialName, phone);
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception e) {
+                            log.warn("Error resolving account for contact {}: {}",
+                                    officialName, e.getMessage());
+                        }
+                    } else if (phone != null && !phone.isBlank()) {
+                        log.warn("Contact {} has invalid phone format: {} (expected E.164)",
+                                c.getName(), phone);
                     }
 
-                    contactAsBeneficiaries.add(BeneficiaryDto.builder()
-                            .nickname(c.getName())
-                            .officialName(officialName)
-                            .phoneNumber(phone)
-                            .targetAccountNumber(accountNumber) // may be null if not a Wayfinder user
-                            .build());
+                    // ✅ Only add to valid list if contact is a Wayfinder user with account
+                    if (isWayfinderUser && accountNumber != null) {
+                        validatedBeneficiaries.add(BeneficiaryDto.builder()
+                                .nickname(c.getName())
+                                .officialName(officialName)
+                                .phoneNumber(phone)
+                                .targetAccountNumber(accountNumber)
+                                .build());
+                    }
                 }
 
-                // Build correction hint if name differs from what was understood
+                // ✅ NEW: If NO valid Wayfinder contacts found, reject BEFORE confirmation
+                if (validatedBeneficiaries.isEmpty()) {
+                    String contactList = contactMatches.stream()
+                        .map(ContactLiteDto::getName)
+                        .collect(java.util.stream.Collectors.joining(", "));
+
+                    log.warn("No valid Wayfinder accounts found for contacts: {}", contactList);
+
+                    return VoiceCommandResponse.builder()
+                            .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
+                            .actionPerformed(false).success(false)
+                            .message("Contactele '" + contactList + "' nu au conturi Wayfinder. " +
+                                    "Nu se pot transfera bani. Te rog adaugă beneficiarul cu IBAN.")
+                            .build();
+                }
+
+                // ✅ Show confirmation ONLY if we have validated Wayfinder accounts
                 String correctionNote = "";
-                if (!contactAsBeneficiaries.isEmpty()) {
-                    String topName = contactAsBeneficiaries.get(0).getNickname();
-                    if (topName != null && !normalizeDiacritics(topName).equalsIgnoreCase(normalizeDiacritics(beneficiaryName))) {
-                        correctionNote = "Am înțeles '" + beneficiaryName + "'. ";
+                if (!validatedBeneficiaries.isEmpty()) {
+                    String topName = validatedBeneficiaries.get(0).getNickname();
+                    if (topName != null && !topName.isBlank()) {
+                        try {
+                            String normalizedTop = normalizeDiacritics(topName);
+                            String normalizedInput = normalizeDiacritics(beneficiaryName);
+                            if (!normalizedTop.equalsIgnoreCase(normalizedInput)) {
+                                correctionNote = "Am înțeles '" + beneficiaryName + "'. ";
+                            }
+                        } catch (Exception e) {
+                            log.debug("Error normalizing diacritics: {}", e.getMessage());
+                        }
                     }
                 }
 
-                String confirmMsg = contactAsBeneficiaries.size() == 1
-                        ? correctionNote + "Am găsit contactul '" + contactAsBeneficiaries.get(0).getNickname() +
-                          "'. Confirmi transferul de " + amount + " LEI?"
-                        : correctionNote + "Am găsit " + contactAsBeneficiaries.size() + " contacte cu numele '" +
-                          beneficiaryName + "'. Alege unul.";
+                String confirmMsg;
+                if (validatedBeneficiaries.size() == 1) {
+                    confirmMsg = correctionNote + "Am găsit contactul '" +
+                                validatedBeneficiaries.get(0).getNickname() +
+                                "'. Confirmi transferul de " + amount + " LEI?";
+                } else {
+                    // Multiple valid contacts - show all so user can choose
+                    confirmMsg = correctionNote + "Am găsit " + validatedBeneficiaries.size() +
+                                " contacte cu numele '" + beneficiaryName + "'. Alege unul:\n";
+                    for (int i = 0; i < validatedBeneficiaries.size(); i++) {
+                        confirmMsg += (i + 1) + ". " + validatedBeneficiaries.get(i).getNickname() + "\n";
+                    }
+                }
 
                 Map<String, Object> actionData = new HashMap<>();
                 actionData.put("description", entities.getOrDefault("description", ""));
-                actionData.put("targetAccountNumber", contactAsBeneficiaries.get(0).getTargetAccountNumber());
+                actionData.put("targetAccountNumber", validatedBeneficiaries.get(0).getTargetAccountNumber());
                 actionData.put("amount", amount);
                 actionData.put("currency", "RON");
 
@@ -586,159 +710,42 @@ public class AiAgentServiceImpl implements AiAgentService {
                         .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
                         .actionPerformed(false).success(true)
                         .pendingConfirmation(true)
-                        .matchedBeneficiaries(contactAsBeneficiaries)
+                        .matchedBeneficiaries(validatedBeneficiaries)
                         .extractedEntities(entities)
                         .actionData(actionData)
                         .message(confirmMsg)
                         .build();
             }
 
-            // ── Step 2: Search saved beneficiaries in DB ──────────────────────────────
-            try {
-                beneficiary = beneficiaryService.getBeneficiaryByNickname(userId, beneficiaryName);
-                // exact match found — still ask for confirmation before executing
-                Map<String, Object> actionData = new HashMap<>();
-                actionData.put("description", entities.getOrDefault("description", ""));
-                actionData.put("targetAccountNumber", beneficiary.getTargetAccountNumber());
-                actionData.put("amount", amount);
-                actionData.put("currency", "RON");
+            // ── Step 2: Contact not in phonebook → REJECT (don't search DB) ──────────────
+            log.info("Contact '{}' not found in phonebook for user {}", beneficiaryName, userId);
 
-                return VoiceCommandResponse.builder()
-                        .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                        .actionPerformed(false).success(true)
-                        .pendingConfirmation(true)
-                        .matchedBeneficiaries(List.of(beneficiary))
-                        .extractedEntities(entities)
-                        .actionData(actionData)
-                        .message("Am găsit beneficiarul '" + beneficiary.getNickname() +
-                                 "'. Confirmi transferul de " + amount + " LEI?")
-                        .build();
-            } catch (Exception e) {
-                List<String> candidates = generateNameCandidates(beneficiaryName);
-                List<BeneficiaryDto> matches = new ArrayList<>();
-
-                for (String candidate : candidates) {
-                    List<BeneficiaryDto> found = beneficiaryService.searchBeneficiaries(userId, candidate);
-                    for (BeneficiaryDto b : found) {
-                        if (matches.stream().noneMatch(m -> m.getBeneficiaryId().equals(b.getBeneficiaryId()))) {
-                            matches.add(b);
-                        }
-                    }
-                    if (!matches.isEmpty()) break;
-                }
-
-                if (!matches.isEmpty()) {
-                    String confirmMsg = matches.size() == 1
-                            ? "Am găsit beneficiarul '" + matches.get(0).getNickname() +
-                              "'. Confirmi transferul de " + amount + " LEI?"
-                            : "Am găsit " + matches.size() + " beneficiari cu numele '" + beneficiaryName + "'. Alege unul.";
-                    Map<String, Object> actionData = new HashMap<>();
-                    actionData.put("description", entities.getOrDefault("description", ""));
-                    actionData.put("targetAccountNumber", matches.get(0).getTargetAccountNumber());
-                    actionData.put("amount", amount);
-                    actionData.put("currency", "RON");
-
-                    return VoiceCommandResponse.builder()
-                            .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                            .actionPerformed(false).success(true)
-                            .pendingConfirmation(true)
-                            .matchedBeneficiaries(matches)
-                            .extractedEntities(entities)
-                            .actionData(actionData)
-                            .message(confirmMsg)
-                            .build();
-                }
-
-                // ── Step 3: Search registered app users by name ───────────────────────
-                List<String> userCandidates = generateNameCandidates(beneficiaryName);
-                List<UserEntity> userMatches = new ArrayList<>();
-
-                for (String candidate : userCandidates) {
-                    List<String> searchTerms = new ArrayList<>();
-                    searchTerms.add(candidate);
-                    String normalized = normalizeDiacritics(candidate);
-                    if (!normalized.equals(candidate)) searchTerms.add(normalized);
-
-                    for (String term : searchTerms) {
-                        List<UserEntity> found = userRepository.findByFullNameContainingIgnoreCase(term);
-                        for (UserEntity u : found) {
-                            if (userMatches.stream().noneMatch(m -> m.getUserId().equals(u.getUserId()))) {
-                                userMatches.add(u);
-                            }
-                        }
-                    }
-                    if (!userMatches.isEmpty()) break;
-                }
-
-                if (userMatches.isEmpty()) {
-                    String[] words = normalizeDiacritics(beneficiaryName).split("\\s+");
-                    for (String word : words) {
-                        if (word.length() < 3) continue;
-                        List<UserEntity> found = userRepository.findByFullNameContainingIgnoreCase(word);
-                        for (UserEntity u : found) {
-                            if (userMatches.stream().noneMatch(m -> m.getUserId().equals(u.getUserId()))) {
-                                userMatches.add(u);
-                            }
-                        }
-                    }
-                }
-
-                if (userMatches.isEmpty()) {
-                    return VoiceCommandResponse.builder()
-                            .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                            .actionPerformed(false).success(false)
-                            .message("Nu am găsit niciun utilizator sau beneficiar cu numele '" + beneficiaryName + "'.")
-                            .build();
-                }
-
-                List<BeneficiaryDto> userAsBeneficiaries = new ArrayList<>();
-                for (UserEntity u : userMatches) {
-                    List<AccountDto> uAccounts = accountService.getAccountsByUserId(u.getUserId());
-                    uAccounts.stream().filter(AccountDto::getIsActive).findFirst().ifPresent(acc ->
-                        userAsBeneficiaries.add(BeneficiaryDto.builder()
-                            .nickname(u.getFullName())
-                            .officialName(u.getFullName())
-                            .targetAccountNumber(acc.getAccountNumber())
-                            .phoneNumber(u.getPhoneNumber())
-                            .build())
-                    );
-                }
-
-                if (userAsBeneficiaries.isEmpty()) {
-                    return VoiceCommandResponse.builder()
-                            .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                            .actionPerformed(false).success(false)
-                            .message("Utilizatorul '" + beneficiaryName + "' nu are un cont activ.")
-                            .build();
-                }
-
-                String confirmMsg = userAsBeneficiaries.size() == 1
-                        ? "Am găsit utilizatorul '" + userAsBeneficiaries.get(0).getNickname() +
-                          "'. Confirmi transferul de " + amount + " LEI?"
-                        : "Am găsit " + userAsBeneficiaries.size() + " utilizatori cu numele '" +
-                          beneficiaryName + "'. Alege unul.";
-
-                Map<String, Object> actionData = new HashMap<>();
-                actionData.put("description", entities.getOrDefault("description", ""));
-                actionData.put("targetAccountNumber", userAsBeneficiaries.get(0).getTargetAccountNumber());
-                actionData.put("amount", amount);
-                actionData.put("currency", "RON");
-
-                return VoiceCommandResponse.builder()
-                        .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
-                        .actionPerformed(false).success(true)
-                        .pendingConfirmation(true)
-                        .matchedBeneficiaries(userAsBeneficiaries)
-                        .extractedEntities(entities)
-                        .actionData(actionData)
-                        .message(confirmMsg)
-                        .build();
-            }
-        } else {
             return VoiceCommandResponse.builder()
                     .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
                     .actionPerformed(false).success(false)
-                    .message("Could not detect recipient. Please specify a beneficiary name or phone number.").build();
+                    .message("Contactul '" + beneficiaryName +
+                            "' nu se găsește în foaia de contact. Adaugă contactul și încearcă din nou.")
+                    .build();
+        }
+
+        // Validate beneficiary has valid account number
+        if (beneficiary == null || beneficiary.getTargetAccountNumber() == null || beneficiary.getTargetAccountNumber().isBlank()) {
+            log.warn("Beneficiary has no valid account number. Asking for IBAN fallback.");
+            Map<String, Object> actionData = new HashMap<>();
+            actionData.put("description", entities.getOrDefault("description", ""));
+            actionData.put("amount", amount);
+            actionData.put("currency", "RON");
+            actionData.put("recipientName", recipientIdentifier);
+            actionData.put("requiresIbanEntry", true);
+
+            return VoiceCommandResponse.builder()
+                    .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY)
+                    .actionPerformed(false).success(true)
+                    .pendingConfirmation(false)
+                    .extractedEntities(entities)
+                    .actionData(actionData)
+                    .message("Destinatarul " + recipientIdentifier + " nu are un cont Wayfinder. Te rog introdu IBAN-ul pentru transfer extern.")
+                    .build();
         }
 
         // Use extracted description if available, fallback to default
@@ -757,9 +764,9 @@ public class AiAgentServiceImpl implements AiAgentService {
 
         return VoiceCommandResponse.builder()
                 .aiMode(AiMode.AGENT).intent(Intent.TRANSFER_MONEY).actionPerformed(true)
-                .actionConfirmation("Successfully transferred " + amount + " RON to " + recipientIdentifier)
-                .actionDetails("Transaction ID: " + transaction.getId())
-                .transactionId(transaction.getId()).success(true).message("Transfer completed!").build();
+                .actionConfirmation("Transferat cu succes " + amount + " RON la " + recipientIdentifier)
+                .actionDetails("ID Tranzacție: " + transaction.getId())
+                .transactionId(transaction.getId()).success(true).message("Transfer completat!").build();
     }
 
     private VoiceCommandResponse executePlataFacturi(UUID userId, String transcript, List<Double> voiceFingerprint) {
@@ -775,40 +782,74 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
 
         String providerKeyword = (String) entities.get("factura");
+        log.info("Raw provider keyword from model: {}", providerKeyword);
+
+        // Normalize provider keyword (remove "factura", "factură", etc.)
+        String normalizedKeyword = normalizeProviderKeyword(providerKeyword);
+
+        // If normalization returned empty (e.g., only "factura" was extracted),
+        // try to extract provider name from transcript using regex
+        if (normalizedKeyword.isEmpty()) {
+            log.info("Normalized keyword is empty, extracting from transcript: {}", transcript);
+            // Try to extract common provider keywords from transcript
+            String[] commonProviders = {"digi", "orange", "vodafone", "telekom", "electrica", "enel",
+                                        "engie", "e.on", "eon", "apa nova", "apa"};
+            for (String provider : commonProviders) {
+                if (transcript.toLowerCase().contains(provider)) {
+                    normalizedKeyword = provider;
+                    log.info("Extracted provider from transcript: {}", normalizedKeyword);
+                    break;
+                }
+            }
+        }
+
+        if (normalizedKeyword.isEmpty()) {
+            log.warn("Could not extract provider keyword");
+            return VoiceCommandResponse.builder()
+                    .aiMode(AiMode.AGENT).intent(Intent.PLATA_FACTURI)
+                    .actionPerformed(false).success(false)
+                    .message("Nu am putut detecta furnizorul facturii. Te rog specifică ce factură vrei să plătești (ex: 'Digi', 'electricitate').")
+                    .build();
+        }
+
+        providerKeyword = normalizedKeyword;
         log.info("Searching for bills with provider keyword: {}", providerKeyword);
 
+        // Use final variable for lambda
+        final String searchKeyword = providerKeyword;
+
         // Step 1: Try to find provider by name/keyword
-        List<ProviderEntity> providers = providerRepository.findByCategoryContainingIgnoreCase(providerKeyword);
+        List<ProviderEntity> providers = providerRepository.findByCategoryContainingIgnoreCase(searchKeyword);
         if (providers.isEmpty()) {
             // Try searching by name
             providers = providerRepository.findAll().stream()
-                    .filter(p -> p.getName().toLowerCase().contains(providerKeyword.toLowerCase()) ||
-                                p.getKeywords().toLowerCase().contains(providerKeyword.toLowerCase()))
+                    .filter(p -> p.getName().toLowerCase().contains(searchKeyword.toLowerCase()) ||
+                                p.getKeywords().toLowerCase().contains(searchKeyword.toLowerCase()))
                     .toList();
 
             if (providers.isEmpty()) {
                 return VoiceCommandResponse.builder()
                         .aiMode(AiMode.AGENT).intent(Intent.PLATA_FACTURI)
                         .actionPerformed(false).success(false)
-                        .message("Furnizorul '" + providerKeyword + "' nu este recunoscut. Încearcă: Digi, Orange, Vodafone, electricitate, gaz, apă.")
+                        .message("Furnizorul '" + searchKeyword + "' nu este recunoscut. Încearcă: Digi, Orange, Vodafone, electricitate, gaz, apă.")
                         .build();
             }
         }
 
         // Step 2: Search for bills directly using BillService
-        List<BillDto> bills = billService.getUserBillsByProviderName(userId, providerKeyword);
+        List<BillDto> bills = billService.getUserBillsByProviderName(userId, searchKeyword);
 
         if (bills.isEmpty()) {
             return VoiceCommandResponse.builder()
                     .aiMode(AiMode.AGENT).intent(Intent.PLATA_FACTURI)
                     .actionPerformed(false).success(false)
-                    .message("Nu aveți facturi neachitate la " + providerKeyword + ". Spuneți suma pe care doriți s-o plătiți.")
+                    .message("Nu aveți facturi neachitate la " + searchKeyword + ". Spuneți suma pe care doriți s-o plăteți.")
                     .build();
         }
 
         // Step 3: Return bills found
         Map<String, Object> actionData = new HashMap<>();
-        actionData.put("providerKeyword", providerKeyword);
+        actionData.put("providerKeyword", searchKeyword);
         actionData.put("billsFound", bills.size());
         actionData.put("bills", bills);
 
@@ -819,7 +860,7 @@ public class AiAgentServiceImpl implements AiAgentService {
                     bill.getProviderName(), bill.getAmount(), bill.getDescription());
             actionData.put("selectedBill", bill);
         } else {
-            message = "Am găsit " + bills.size() + " facturi neachitate la " + providerKeyword + ":";
+            message = "Am găsit " + bills.size() + " facturi neachitate la " + searchKeyword + ":";
             for (int i = 0; i < bills.size(); i++) {
                 BillDto bill = bills.get(i);
                 message += String.format("\n%d. %s - %.2f RON (%s)",
@@ -840,15 +881,15 @@ public class AiAgentServiceImpl implements AiAgentService {
 
     private VoiceCommandResponse executeCheckBalance(UUID userId) {
         List<AccountDto> accounts = accountService.getAccountsByUserId(userId);
-        StringBuilder message = new StringBuilder("Your account balances:\n");
+        StringBuilder message = new StringBuilder("Soldurile conturilor tale:\n");
         for (AccountDto account : accounts) {
-            message.append("Account ").append(account.getAccountNumber())
+            message.append("Cont ").append(account.getAccountNumber())
                    .append(": ").append(account.getBalance())
                    .append(" ").append(account.getCurrency()).append("\n");
         }
         return VoiceCommandResponse.builder()
                 .aiMode(AiMode.AGENT).intent(Intent.CHECK_BALANCE).actionPerformed(true)
-                .actionDetails("Retrieved " + accounts.size() + " accounts")
+                .actionDetails("Găsite " + accounts.size() + " conturi")
                 .message(message.toString()).success(true).build();
     }
 
@@ -856,8 +897,8 @@ public class AiAgentServiceImpl implements AiAgentService {
         List<TransactionDto> transactions = transactionService.getTransactionsByUserId(userId);
         return VoiceCommandResponse.builder()
                 .aiMode(AiMode.AGENT).intent(Intent.VIEW_TRANSACTIONS).actionPerformed(true)
-                .actionDetails("Retrieved " + transactions.size() + " transactions")
-                .message("Found " + transactions.size() + " transactions. Check the app for details.")
+                .actionDetails("Găsite " + transactions.size() + " tranzacții")
+                .message("Am găsit " + transactions.size() + " tranzacții. Verifică aplicația pentru detalii.")
                 .success(true).build();
     }
 
@@ -865,20 +906,20 @@ public class AiAgentServiceImpl implements AiAgentService {
         List<AccountDto> accounts = accountService.getAccountsByUserId(userId);
         return VoiceCommandResponse.builder()
                 .aiMode(AiMode.AGENT).intent(Intent.VIEW_ACCOUNTS).actionPerformed(true)
-                .actionDetails("Retrieved " + accounts.size() + " accounts")
-                .message("You have " + accounts.size() + " accounts. Check the app for details.")
+                .actionDetails("Găsite " + accounts.size() + " conturi")
+                .message("Ai " + accounts.size() + " conturi. Verifică aplicația pentru detalii.")
                 .success(true).build();
     }
 
     private VoiceCommandResponse executeViewBeneficiaries(UUID userId) {
         List<BeneficiaryDto> beneficiaries = beneficiaryService.getBeneficiariesByUserId(userId);
-        StringBuilder message = new StringBuilder("Your beneficiaries:\n");
+        StringBuilder message = new StringBuilder("Beneficiarii tăi:\n");
         for (BeneficiaryDto ben : beneficiaries) {
             message.append("- ").append(ben.getNickname()).append("\n");
         }
         return VoiceCommandResponse.builder()
                 .aiMode(AiMode.AGENT).intent(Intent.VIEW_BENEFICIARIES).actionPerformed(true)
-                .actionDetails("Retrieved " + beneficiaries.size() + " beneficiaries")
+                .actionDetails("Găsiți " + beneficiaries.size() + " beneficiari")
                 .message(message.toString()).success(true).build();
     }
 
@@ -961,7 +1002,10 @@ public class AiAgentServiceImpl implements AiAgentService {
             merged.put("beneficiary", aiModelEntities.get("BENEFICIAR").toString().trim());
         }
         if (aiModelEntities.containsKey("FACTURA")) {
-            merged.put("factura", aiModelEntities.get("FACTURA").toString().trim().toLowerCase());
+            String facturaRaw = aiModelEntities.get("FACTURA").toString().trim().toLowerCase();
+            // Normalize: remove common prefixes like "factura", "factură", "bill", etc.
+            String normalized = normalizeProviderKeyword(facturaRaw);
+            merged.put("factura", normalized);
         }
         if (aiModelEntities.containsKey("SUMA")) {
             try {
@@ -1252,4 +1296,43 @@ public class AiAgentServiceImpl implements AiAgentService {
         return dp[a.length()][b.length()];
     }
 
+    /**
+     * Normalizes provider keyword by removing common prefixes like "factura", "factură", "bill", etc.
+     * Examples: "factura digi" -> "digi", "factură electricitate" -> "electricitate"
+     */
+    private String normalizeProviderKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) return "";
+
+        String normalized = keyword.trim().toLowerCase();
+
+        // Remove common prefixes
+        String[] prefixes = {
+            "factură ", "factura ", "bill ", "facturi ", "plata facturii ",
+            "pentru ", "pt ", "la ", "de la "
+        };
+
+        for (String prefix : prefixes) {
+            if (normalized.startsWith(prefix)) {
+                normalized = normalized.substring(prefix.length()).trim();
+            }
+        }
+
+        // Also handle cases where the prefix is at the end: "digi factura" -> "digi"
+        String[] suffixes = {" factură", " factura", " bill", " facturi"};
+        for (String suffix : suffixes) {
+            if (normalized.endsWith(suffix)) {
+                normalized = normalized.substring(0, normalized.length() - suffix.length()).trim();
+            }
+        }
+
+        // If after normalization we only have "factura" or similar, it's not a real provider
+        // Return empty to trigger fallback to regex extraction from transcript
+        if (normalized.isEmpty() || normalized.equals("factura") || normalized.equals("factură") || normalized.equals("bill")) {
+            return "";
+        }
+
+        return normalized;
+    }
+
 }
+

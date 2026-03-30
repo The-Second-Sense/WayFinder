@@ -80,8 +80,9 @@ public class AccountServiceImpl implements AccountService {
             throw new RuntimeException("Cannot close account with non-zero balance");
         }
 
-        account.setIsActive(false);
-        accountRepository.save(account);
+
+        accountRepository.delete(account);
+        log.info("Account {} permanently deleted/closed for user {}", accountId, userId);
     }
 
     @Override

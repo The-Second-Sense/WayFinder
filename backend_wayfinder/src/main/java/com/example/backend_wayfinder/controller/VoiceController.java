@@ -59,7 +59,7 @@ public class VoiceController {
 
             return ResponseEntity.ok(VoiceCommandResponse.builder()
                     .success(false)
-                    .message("Failed to process voice command: " + e.getMessage())
+                    .message("Eroare în procesarea comenzii vocale: " + e.getMessage())
                     .build());
         }
     }
@@ -99,7 +99,7 @@ public class VoiceController {
                 log.warn("User {} has no enrolled voice fingerprint", request.getUserId());
                 return ResponseEntity.ok(VoiceCommandResponse.builder()
                         .success(false)
-                        .message("No voice enrolled. Please enroll your voice first.")
+                        .message("Nicio voce înregistrată. Te rog înregistrează-ți vocea mai întâi.")
                         .build());
             }
 
@@ -116,9 +116,9 @@ public class VoiceController {
 
                 String message;
                 if ("DENIED".equals(securityResponse.getStatus())) {
-                    message = "Voice not recognized. Please try again.";
+                    message = "Vocea nu a fost recunoscută. Te rog încearcă din nou.";
                 } else {
-                    message = "AI service temporarily unavailable. Please try again later.";
+                    message = "Serviciul AI nu este disponibil temporar. Te rog încearcă mai târziu.";
                 }
 
                 return ResponseEntity.ok(VoiceCommandResponse.builder()
@@ -173,7 +173,7 @@ public class VoiceController {
 
             return ResponseEntity.ok(VoiceCommandResponse.builder()
                     .success(false)
-                    .message("Failed to process voice: " + e.getMessage())
+                    .message("Eroare în procesarea vocii: " + e.getMessage())
                     .build());
         }
     }
@@ -204,8 +204,15 @@ public class VoiceController {
 
         if (!request.isConfirmed()) {
             log.info("Transfer cancelled by user {}", request.getUserId());
-            // Optionally, you can return a specific response for cancellation
-            return ResponseEntity.badRequest().body(null); // Or a custom DTO
+            return ResponseEntity.badRequest().body(null);
+        }
+
+        // Validate target account is provided
+        if (request.getTargetAccountNumber() == null || request.getTargetAccountNumber().isBlank()) {
+            log.error("Transfer target account is null or blank for user {}", request.getUserId());
+            throw new IllegalArgumentException(
+                "Destinatarul nu are un cont Wayfinder. Te rog introdu IBAN-ul pentru transfer extern."
+            );
         }
 
         // Get user's active account
@@ -320,7 +327,7 @@ public class VoiceController {
             return ResponseEntity.badRequest().body(
                 AudioUploadResponse.builder()
                     .success(false)
-                    .message("Audio data is required")
+                    .message("Datele audio sunt obligatorii")
                     .audioSize(0)
                     .build()
             );
@@ -334,7 +341,7 @@ public class VoiceController {
 
             AudioUploadResponse response = AudioUploadResponse.builder()
                     .success(true)
-                    .message("Voice fingerprint extracted successfully")
+                    .message("Amprenta vocală extrasă cu succes")
                     .audioSize(audioBase64.length())
                     .fingerprint(fingerprint)
                     .build();
@@ -348,7 +355,7 @@ public class VoiceController {
             return ResponseEntity.ok(
                 AudioUploadResponse.builder()
                     .success(false)
-                    .message("Failed to extract fingerprint: " + e.getMessage())
+                    .message("Eroare la extragerea amprentei: " + e.getMessage())
                     .audioSize(audioBase64.length())
                     .build()
             );
@@ -387,7 +394,7 @@ public class VoiceController {
                 log.warn("User {} already has a voice fingerprint enrolled", request.getUserId());
                 return ResponseEntity.ok(VoiceEnrollmentResponse.builder()
                         .success(false)
-                        .message("Voice already enrolled. Contact support to reset your voice profile.")
+                        .message("Voce deja înregistrată. Contactează suportul pentru a reseta profilul vocal.")
                         .build());
             }
 
@@ -399,7 +406,7 @@ public class VoiceController {
                 log.error("Invalid fingerprint dimension: {} (expected 512)", fingerprint.size());
                 return ResponseEntity.ok(VoiceEnrollmentResponse.builder()
                         .success(false)
-                        .message("Invalid fingerprint dimension: " + fingerprint.size() + " (expected 512)")
+                        .message("Dimensiune amprentă nevalidă: " + fingerprint.size() + " (așteptat 512)")
                         .build());
             }
 
@@ -413,7 +420,7 @@ public class VoiceController {
 
             return ResponseEntity.ok(VoiceEnrollmentResponse.builder()
                     .success(true)
-                    .message("Voice authentication enabled successfully")
+                    .message("Autentificarea vocală activată cu succes")
                     .fingerprintDimension(fingerprint.size())
                     .build());
 
@@ -422,7 +429,7 @@ public class VoiceController {
 
             return ResponseEntity.ok(VoiceEnrollmentResponse.builder()
                     .success(false)
-                    .message("Voice enrollment failed: " + e.getMessage())
+                    .message("Eroare la înregistrarea vocii: " + e.getMessage())
                     .build());
         }
     }
@@ -448,7 +455,7 @@ public class VoiceController {
                         .success(false)
                         .similarity(0.0)
                         .threshold(0.85)
-                        .message("User has no registered voice fingerprint. Please enroll first.")
+                        .message("Utilizatorul nu are o amprentă vocală înregistrată. Te rog înregistrează-ți vocea mai întâi.")
                         .build());
             }
 
@@ -457,7 +464,7 @@ public class VoiceController {
                         .success(false)
                         .similarity(0.0)
                         .threshold(0.85)
-                        .message("No voice fingerprint provided in request.")
+                        .message("Nicio amprentă vocală furnizată în cerere.")
                         .build());
             }
 
@@ -478,7 +485,7 @@ public class VoiceController {
                     .success(isMatch)
                     .similarity(similarity)
                     .threshold(0.85)
-                    .message(isMatch ? "Voice authentication successful" : "Voice authentication failed: similarity below threshold")
+                    .message(isMatch ? "Autentificarea vocală reușită" : "Autentificarea vocală eșuată: similaritate sub prag")
                     .build());
         } catch (Exception e) {
             log.error("Voice auth test failed: {}", e.getMessage());

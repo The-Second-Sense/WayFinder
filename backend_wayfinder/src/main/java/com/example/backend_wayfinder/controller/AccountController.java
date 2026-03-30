@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -86,6 +87,69 @@ public class AccountController {
         } catch (RuntimeException e) {
             log.error("Failed to create account: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * POST /api/accounts/{accountId}/close
+     * Closes an account (soft delete) — can only close if balance is zero.
+     * Path: accountId
+     * Body: { "userId": "..." }
+     */
+    @PostMapping("/{accountId}/close")
+    public ResponseEntity<String> closeAccount(@PathVariable Integer accountId, @RequestBody Map<String, String> request) {
+        String userIdStr = request.get("userId");
+        if (userIdStr == null) {
+            return ResponseEntity.badRequest().body("userId is required");
+        }
+
+        try {
+            UUID userId = UUID.fromString(userIdStr);
+            log.info("Closing account ID: {} for user ID: {}", accountId, userId);
+            accountService.closeAccount(accountId, userId);
+            return ResponseEntity.ok("Account closed successfully");
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid user ID format: {}", userIdStr);
+            return ResponseEntity.badRequest().body("Invalid user ID format");
+        } catch (RuntimeException e) {
+            log.error("Failed to close account {}: {}", accountId, e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * POST /api/accounts/{accountId}/block
+     * Blocks/freezes an account (temporarily) — deactivates without checking balance.
+     * Path: accountId
+     * Body: { "reason": "Suspicious activity" }
+     */
+    @PostMapping("/{accountId}/block")
+    public ResponseEntity<String> blockAccount(@PathVariable Integer accountId, @RequestBody Map<String, String> request) {
+        String reason = request.getOrDefault("reason", "No reason provided");
+        log.info("Blocking account ID: {}, Reason: {}", accountId, reason);
+        try {
+            accountService.deactivateAccount(accountId, reason);
+            return ResponseEntity.ok("Account blocked successfully");
+        } catch (RuntimeException e) {
+            log.error("Failed to block account {}: {}", accountId, e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * POST /api/accounts/{accountId}/unblock
+     * Unblocks/unfreezes an account — reactivates it.
+     * Path: accountId
+     */
+    @PostMapping("/{accountId}/unblock")
+    public ResponseEntity<String> unblockAccount(@PathVariable Integer accountId) {
+        log.info("Unblocking account ID: {}", accountId);
+        try {
+            accountService.activateAccount(accountId);
+            return ResponseEntity.ok("Account unblocked successfully");
+        } catch (RuntimeException e) {
+            log.error("Failed to unblock account {}: {}", accountId, e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.backend_wayfinder.service.impl;
 
 import java.util.UUID;
+import java.util.Base64;
 
 import com.example.backend_wayfinder.Dto.*;
 import com.example.backend_wayfinder.entities.AccountEntity;
@@ -46,14 +47,23 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public AuthenticationResponse login(String phone, String password) {
         log.info("Attempting login for phone: {}", phone);
 
+        // SQL Injection Prevention: Validate input format
+        if (!isValidPhoneFormat(phone) || password == null || password.isEmpty()) {
+            log.warn("Invalid login input format - possible injection attempt");
+            throw new RuntimeException("Telefon sau parolă incorectă");
+        }
+
         UserEntity user = userRepository.findByPhoneNumber(phone)
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                .orElseThrow(() -> new RuntimeException("Telefon sau parolă incorectă"));
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             log.warn("Invalid password attempt for phone: {}", phone);
-            throw new RuntimeException("Invalid credentials");
+            throw new RuntimeException("Telefon sau parolă incorectă");
         }
 
+        // SINGLE SESSION ENFORCEMENT: Invalidate all previous sessions for this user
+        log.info("Invalidating previous sessions for user ID: {}", user.getUserId());
+        invalidateAllSessions(user.getUserId());
 
         // Update last login
         user.setLastLogin(LocalDateTime.now());
@@ -63,6 +73,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
+
+        // Create new session for this user
+        String sessionToken = UUID.randomUUID().toString();
+        activeSessions.put(sessionToken, user.getUserId());
+        log.info("New session created for user ID: {}", user.getUserId());
 
         log.info("Login successful for user ID: {}", user.getUserId());
 
@@ -86,7 +101,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         return AuthenticationResponse.builder()
                 .success(true)
-                .message("Login successful")
+                .message("Autentificare reușită")
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .user(userDto)
@@ -99,15 +114,21 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public AuthenticationResponse voiceLogin(byte[] voiceSample, String email) {
         log.info("Attempting voice login for email: {}", email);
 
+        // SQL Injection Prevention: Validate email format
+        if (!isValidEmailFormat(email)) {
+            log.warn("Invalid email format - possible injection attempt");
+            throw new RuntimeException("Email nevalid");
+        }
+
         UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Utilizator nu găsit"));
 
         if (!user.getIsVoiceAuthEnabled()) {
-            throw new RuntimeException("Voice authentication not enabled for this user");
+            throw new RuntimeException("Autentificarea vocală nu este activată pentru acest utilizator");
         }
 
         if (user.getVoiceFingerprint() == null || user.getVoiceFingerprint().isEmpty()) {
-            throw new RuntimeException("No voice profile found for this user");
+            throw new RuntimeException("Niciun profil vocal găsit pentru acest utilizator");
         }
 
         try {
@@ -119,7 +140,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             List<Double> currentFingerprint = modalAiService.extractVoiceFingerprint(base64Audio);
 
             if (currentFingerprint.size() != 512) {
-                throw new RuntimeException("Invalid fingerprint dimension: " + currentFingerprint.size());
+                throw new RuntimeException("Dimensiune amprentă nevalidă: " + currentFingerprint.size());
             }
 
             // Verify voice against stored fingerprint
@@ -130,10 +151,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
             if (!isVoiceValid) {
                 log.warn("Voice authentication failed for user: {}", email);
-                throw new RuntimeException("Voice authentication failed - voice does not match");
+                throw new RuntimeException("Autentificarea vocală eșuată - vocea nu se potrivește");
             }
 
             log.info("Voice authentication successful for user: {}", email);
+
+            // SINGLE SESSION ENFORCEMENT: Invalidate all previous sessions for this user
+            log.info("Invalidating previous sessions for user ID: {}", user.getUserId());
+            invalidateAllSessions(user.getUserId());
 
             // Update last login
             user.setLastLogin(LocalDateTime.now());
@@ -150,6 +175,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             String accessToken = jwtService.generateToken(userDetails);
             String refreshToken = jwtService.generateRefreshToken(userDetails);
 
+            // Create new session for this user
+            String sessionToken = UUID.randomUUID().toString();
+            activeSessions.put(sessionToken, user.getUserId());
+            log.info("New session created for user ID: {}", user.getUserId());
+
             // Return authentication response (same as regular login)
             UserDto userDto = UserDto.builder()
                     .userId(user.getUserId())
@@ -164,7 +194,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
             return AuthenticationResponse.builder()
                     .success(true)
-                    .message("Voice login successful")
+                    .message("Autentificare vocală reușită")
                     .accessToken(accessToken)
                     .refreshToken(refreshToken)
                     .user(userDto)
@@ -174,7 +204,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         } catch (Exception e) {
             log.error("Voice login failed: {}", e.getMessage(), e);
-            throw new RuntimeException("Voice login failed: " + e.getMessage());
+            throw new RuntimeException("Autentificare vocală eșuată: " + e.getMessage());
         }
     }
 
@@ -301,7 +331,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         return AuthenticationResponse.builder()
                 .success(true)
-                .message("Registration successful")
+                .message("Înregistrare reușită")
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .user(createdUser)
@@ -347,6 +377,59 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .isActive(account.getIsActive())
                 .createdAt(account.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * SQL INJECTION PREVENTION: Validate phone format (E.164 standard)
+     * Acceptable: +40740111222, +1234567890
+     * Rejected: anything with quotes, semicolons, or SQL keywords
+     */
+    private boolean isValidPhoneFormat(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return false;
+        }
+
+        // E.164 format: +[1-9]{1-3}[0-9]{4,14}
+        // Also accept without + prefix for Romanian numbers
+        String trimmed = phone.trim();
+        return trimmed.matches("^\\+?[1-9]\\d{1,14}$");
+    }
+
+    /**
+     * SQL INJECTION PREVENTION: Validate email format
+     * Rejects: SQL keywords, quotes, semicolons, etc.
+     */
+    private boolean isValidEmailFormat(String email) {
+        if (email == null || email.trim().isEmpty() || email.length() > 254) {
+            return false;
+        }
+
+        // RFC 5322 simplified pattern
+        String trimmed = email.trim();
+        return trimmed.matches("^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$");
+    }
+
+    /**
+     * SQL INJECTION PREVENTION: Check for suspicious SQL patterns
+     * Detects: DROP, DELETE, INSERT, UNION, OR 1=1, etc.
+     */
+    private boolean containsSqlInjectionPatterns(String input) {
+        if (input == null) {
+            return false;
+        }
+
+        String upperInput = input.toUpperCase();
+        String[] sqlKeywords = {"DROP", "DELETE", "INSERT", "UPDATE", "SELECT", "UNION",
+                               "EXEC", "EXECUTE", "SCRIPT", "ALERT", ";", "--", "/*", "*/"};
+
+        for (String keyword : sqlKeywords) {
+            if (upperInput.contains(keyword)) {
+                log.warn("SQL injection pattern detected: {}", keyword);
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

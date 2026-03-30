@@ -30,13 +30,27 @@ public class ContactCacheServiceImpl implements ContactCacheService {
             return;
         }
 
-        List<ContactLiteDto> trimmed = contacts.size() > MAX_CONTACTS
-                ? contacts.subList(0, MAX_CONTACTS)
-                : contacts;
+        // ✅ NEW: Deduplicate contacts - keep only 1 instance per unique contact
+        // This prevents "Bogdan de la Aiud" from appearing multiple times in cache
+        Map<String, ContactLiteDto> deduped = new LinkedHashMap<>();
+        for (ContactLiteDto contact : contacts) {
+            String key = normalize(contact.getName()) + "|" + contact.getPhone();
+
+            // If contact already exists, just refresh (keep first occurrence)
+            // If new contact, add it
+            deduped.putIfAbsent(key, contact);
+        }
+
+        List<ContactLiteDto> dedupedList = new ArrayList<>(deduped.values());
+
+        List<ContactLiteDto> trimmed = dedupedList.size() > MAX_CONTACTS
+                ? dedupedList.subList(0, MAX_CONTACTS)
+                : dedupedList;
 
         Cache cache = getCache();
         cache.put(userId.toString(), new ArrayList<>(trimmed));
-        log.debug("Cached {} contacts for user {}", trimmed.size(), userId);
+        log.info("Cached {} unique contacts for user {} (deduped from {} total)",
+                 trimmed.size(), userId, contacts.size());
     }
 
     @Override
@@ -62,6 +76,9 @@ public class ContactCacheServiceImpl implements ContactCacheService {
 
         String hint = normalize(nameHint);
 
+        // ✅ Check if full name (2+ words)
+        boolean isFullName = nameHint.trim().split("\\s+").length >= 2;
+
         // 1. Exact match
         List<ContactLiteDto> exact = contacts.stream()
                 .filter(c -> normalize(c.getName()).equals(hint))
@@ -74,7 +91,12 @@ public class ContactCacheServiceImpl implements ContactCacheService {
                 .collect(Collectors.toList());
         if (!startsWith.isEmpty()) return startsWith.subList(0, Math.min(startsWith.size(), MAX_RESULTS));
 
-        // 3. Contains match (any word in hint matches any word in name)
+        if (isFullName) {
+            log.debug("Full name '{}' not found in contacts (exact or starts-with). No fuzzy matching for full names.", nameHint);
+            return Collections.emptyList();
+        }
+
+        // 3. Contains match (fuzzy) - ONLY for single names
         String[] hintWords = hint.split("\\s+");
         List<ContactLiteDto> contains = contacts.stream()
                 .filter(c -> {

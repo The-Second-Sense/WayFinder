@@ -84,21 +84,44 @@ public class TransactionController {
 
         // Resolve recipient: phone number takes precedence if IBAN not supplied
         String destinationAccountNumber = request.getRecipientAccountNumber();
+        String recipientIdentifier = destinationAccountNumber; // For error messages
+
         if ((destinationAccountNumber == null || destinationAccountNumber.isBlank())
                 && request.getRecipientPhoneNumber() != null && !request.getRecipientPhoneNumber().isBlank()) {
 
             String phone = request.getRecipientPhoneNumber().trim();
-            AccountEntity recipientAccount = accountRepository
-                    .findActiveAccountsByUserPhoneNumber(phone)
-                    .stream()
-                    .findFirst()
-                    .orElseThrow(() -> new ResourceNotFoundException("No active account found for phone number: " + phone));
-            destinationAccountNumber = recipientAccount.getAccountNumber();
-            log.info("Resolved phone {} to account number {}", phone, destinationAccountNumber);
+            recipientIdentifier = phone;
+
+            try {
+                AccountEntity recipientAccount = accountRepository
+                        .findActiveAccountsByUserPhoneNumber(phone)
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
+
+                if (recipientAccount != null) {
+                    destinationAccountNumber = recipientAccount.getAccountNumber();
+                    log.info("Resolved phone {} to account number {}", phone, destinationAccountNumber);
+                } else {
+                    // Phone not found in system - ask for IBAN
+                    log.info("Phone number {} not found in system. Asking for IBAN.", phone);
+                    throw new IllegalArgumentException(
+                        "Numărul de telefon " + phone + " nu este găsit pe Wayfinder. Te rog introdu IBAN-ul pentru transfer extern."
+                    );
+                }
+            } catch (Exception e) {
+                if (e instanceof IllegalArgumentException) throw e;
+                log.warn("Error resolving phone number: {}", phone, e);
+                throw new IllegalArgumentException(
+                    "Eroare la rezolvarea numărului de telefon. Te rog introdu IBAN-ul pentru transfer extern."
+                );
+            }
         }
 
         if (destinationAccountNumber == null || destinationAccountNumber.isBlank()) {
-            throw new IllegalArgumentException("Either recipientAccountNumber or recipientPhoneNumber must be provided");
+            throw new IllegalArgumentException(
+                "Either recipientAccountNumber or recipientPhoneNumber must be provided"
+            );
         }
 
         CreateTransactionRequest txRequest = CreateTransactionRequest.builder()

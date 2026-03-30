@@ -29,7 +29,7 @@ public class UserEntity {
     @Column(name = "id")
     private UUID userId;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String email;
 
     @Column(name = "password_hash", nullable = false)
@@ -38,7 +38,7 @@ public class UserEntity {
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number",unique = true)
     private String phoneNumber;
 
     @Column(name = "is_voice_auth_enabled")
