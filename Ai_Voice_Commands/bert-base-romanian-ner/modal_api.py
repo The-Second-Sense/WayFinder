@@ -45,16 +45,10 @@ class IntentAgent:
             else:
                 extracted_data[tag] += f" {word}"
 
-        intent_label = "ALTELE" # Default intent
+        intent_label = "ALTELE"  # Default intent
 
         if "FACTURA" in extracted_data:
             intent_label = "PLATA_FACTURI"
-
-        elif "SUMA" in extracted_data and "VALUTA" in extracted_data and "BENEFICIAR" in extracted_data:
-            intent_label = "TRANSFER"
-
-        elif "BENEFICIAR" in extracted_data and "SUMA" not in extracted_data:
-            intent_label = "ADAUGA_BENEFICIAR"
 
         elif "SOLD" in extracted_data:
             intent_label = "SOLD"
@@ -62,9 +56,10 @@ class IntentAgent:
         elif "TRANZACTII" in extracted_data:
             intent_label = "TRANZACTII"
 
-        elif "SUMA" in extracted_data and "BENEFICIAR" in extracted_data:
+        elif "TRANSFER" in extracted_data or \
+                "SUMA" in extracted_data or \
+                "BENEFICIAR" in extracted_data:
             intent_label = "TRANSFER"
-
 
         return {
             "intent": intent_label,

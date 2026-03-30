@@ -2,7 +2,7 @@ import json
 from datasets import Dataset
 from transformers import AutoTokenizer, DataCollatorForTokenClassification, AutoModelForTokenClassification
 from transformers import TrainingArguments, Trainer
-with open("banking_data_10k.json") as f:
+with open("banking_data_10k_final.json") as f:
     raw_data = json.load(f)
 
 my_dataset = Dataset.from_dict(raw_data)
@@ -12,7 +12,7 @@ tokenizer = AutoTokenizer.from_pretrained("dumitrescustefan/bert-base-romanian-n
 
 def tokenize_and_allign_labels(examples):
     tokenized_inputs = tokenizer(examples["tokens"], truncation=True, is_split_into_words=True)
-    b_to_i_map = {1: 2, 4: 5, 6: 7, 8: 9, 10: 11}
+    b_to_i_map = {1: 2, 4: 5, 6: 7, 8: 9, 10: 11, 12: 13}
 
     labels = []
     for i, label in enumerate(examples["ner_tags"]):
@@ -56,13 +56,16 @@ id2label = {
     9: "I-SOLD",
     10: "B-TRANZACTII",
     11: "I-TRANZACTII",
+    12: "B-TRANSFER",
+    13: "I-TRANSFER",
+
 }
 
 label2id = {v: k for k, v in id2label.items()}
 
 model = AutoModelForTokenClassification.from_pretrained(
     "dumitrescustefan/bert-base-romanian-ner",
-    num_labels=12,
+    num_labels=14,
     id2label=id2label,
     label2id=label2id,
     ignore_mismatched_sizes=True
