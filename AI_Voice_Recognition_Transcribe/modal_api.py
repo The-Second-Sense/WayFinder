@@ -38,7 +38,7 @@ image = (
     image=image,
     volumes={"/cache": model_cache},
     gpu="T4",
-    scaledown_window=300
+    scaledown_window=3000
 )
 class SecurityAgent:
     @modal.enter()

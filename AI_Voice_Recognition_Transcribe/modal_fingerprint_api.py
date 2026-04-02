@@ -19,7 +19,7 @@ image = (
 )
 
 
-@app.cls(image=image, cpu=2.0)
+@app.cls(image=image, cpu=2.0, keep_warm=1)
 class AudioFingerprinter:
 
     @modal.enter()
